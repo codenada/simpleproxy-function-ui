@@ -1,0 +1,7 @@
+admin:
+  docs_url: "https://github.com/codenada/simpleproxy-function-dev/blob/main/README.md"
+  browser_challenge:
+    enabled: true
+    difficulty: 4
+    challenge_ttl_seconds: 300
+    verified_cookie_ttl_seconds: 600

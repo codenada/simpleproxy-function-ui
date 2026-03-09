@@ -38,6 +38,7 @@ import { createObservabilityApi } from "./observability.js";
 import { createAdminUiApi } from "./admin_ui.js";
 import { createSwaggerApi } from "./swagger.js";
 import { createBootstrapApi } from "./bootstrap.js";
+import { loadAdminConfig } from "./admin_config.js";
 import { createProxyRuntimeApi } from "./proxy_runtime.js";
 import { createProxySupportApi } from "./proxy_support.js";
 import { dispatchPublicRoute } from "./routes/public.js";
@@ -418,6 +419,7 @@ const bootstrapApi = createBootstrapApi({
   kvPutValue,
   kvStore,
   loadConfigV1: (env) => configApi.loadConfigV1(env),
+  loadAdminConfig,
   generateSecret,
   HttpError,
 });

@@ -1,8 +1,13 @@
        <div id="admin-auth" style="margin:12px 0;">
+         <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;">
+           <img src="{{favicon_data_url}}" width="48" height="48" alt="SimpleProxy icon" />
+           <h2 style="margin:0;font-size:26px;">SimpleProxy</h2>
+         </div>
          <h3 id="login-fqdn" style="margin:0 0 10px 0;font-size:16px;color:#475569;font-weight:600;"></h3>
-         <label for="admin-key" style="display:block;font-weight:700;margin-bottom:6px;">Login with admin key</label>
-         <input id="admin-key" type="password" placeholder="paste X-Admin-Key"
+         <label for="admin-key" style="display:block;font-weight:700;margin-bottom:6px;">Login with your credential key.</label>
+         <input id="admin-key" type="password"
            style="width:100%;max-width:560px;padding:10px 12px;border:1px solid #cbd5e1;border-radius:8px;" />
+         <p style="margin:6px 0 0 0;font-size:13px;color:#64748b;">Credentials are not kept in the browser</p>
          <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
            <button type="button" id="login-btn"
              style="padding:8px 12px;border:1px solid #0f172a;border-radius:8px;background:#111827;color:#fff;cursor:pointer;">Login</button>

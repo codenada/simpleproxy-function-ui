@@ -15,6 +15,7 @@ function createBootstrapApi({
   kvPutValue,
   kvStore,
   loadConfigV1,
+  loadAdminConfig,
   generateSecret,
   HttpError,
 }) {
@@ -29,12 +30,16 @@ function createBootstrapApi({
   } = constants;
 
   function getDocsBaseUrl(env) {
-    const raw = String(env?.DOCS_URL || defaultDocsUrl || "").trim();
-    return (raw ? raw : defaultDocsUrl).replace(/#.*$/, "");
+    const adminConfig = loadAdminConfig();
+    const configured = String(adminConfig?.admin?.docs_url || "").trim();
+    const raw = String(env?.DOCS_URL || configured || defaultDocsUrl || "").trim();
+    return (raw || defaultDocsUrl).replace(/#.*$/, "");
   }
 
   function getDocsSectionUrl(env, sectionAnchor) {
-    const raw = String(env?.DOCS_URL || defaultDocsUrl || "").trim();
+    const adminConfig = loadAdminConfig();
+    const configured = String(adminConfig?.admin?.docs_url || "").trim();
+    const raw = String(env?.DOCS_URL || configured || defaultDocsUrl || "").trim();
     const base = raw ? raw.replace(/#.*$/, "") : defaultDocsUrl;
     return `${base}#${sectionAnchor}`;
   }
@@ -96,19 +101,31 @@ function createBootstrapApi({
     return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
   }
 
-  function getBrowserChallengeDifficulty(env) {
-    const raw = Number(env?.BROWSER_CHALLENGE_DIFFICULTY);
-    if (!Number.isFinite(raw)) return 4;
-    return Math.max(1, Math.min(6, Math.floor(raw)));
+  function getBrowserChallengeConfig(env) {
+    const adminConfig = loadAdminConfig();
+    const base = adminConfig?.admin?.browser_challenge || {};
+    const envDifficulty = Number(env?.BROWSER_CHALLENGE_DIFFICULTY);
+    const difficulty = Number.isFinite(envDifficulty)
+      ? Math.max(1, Math.min(6, Math.floor(envDifficulty)))
+      : Math.max(1, Math.min(6, Number(base?.difficulty || 4)));
+    const challengeTtlSeconds = Math.max(30, Math.min(3600, Number(base?.challenge_ttl_seconds || 300)));
+    const verifiedCookieTtlSeconds = Math.max(30, Math.min(86400, Number(base?.verified_cookie_ttl_seconds || 600)));
+    return {
+      enabled: !!base?.enabled,
+      difficulty,
+      challengeTtlSeconds,
+      verifiedCookieTtlSeconds,
+    };
   }
 
   async function createBrowserChallenge(env) {
     const challengeId = randomHex(16);
-    const difficulty = getBrowserChallengeDifficulty(env);
+    const challengeConfig = getBrowserChallengeConfig(env);
+    const difficulty = challengeConfig.difficulty;
     await kvStore(env).put(
       `browser_challenge:${challengeId}`,
       JSON.stringify({ difficulty, created_at_ms: Date.now() }),
-      { expirationTtl: 300 }
+      { expirationTtl: challengeConfig.challengeTtlSeconds }
     );
     return { challengeId, difficulty };
   }
@@ -195,6 +212,7 @@ function createBootstrapApi({
       throw new HttpError(400, "INVALID_BROWSER_PROOF", "Browser proof is invalid.");
     }
     await kvStore(env).delete(`browser_challenge:${challengeId}`);
+    const challengeConfig = getBrowserChallengeConfig(env);
     return new Response(
       JSON.stringify({ ok: true }),
       {
@@ -202,7 +220,7 @@ function createBootstrapApi({
         headers: {
           "content-type": "application/json; charset=utf-8",
           "cache-control": "no-store",
-          "set-cookie": "apiproxy_browser_verified=1; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=600",
+          "set-cookie": `apiproxy_browser_verified=1; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${challengeConfig.verifiedCookieTtlSeconds}`,
         },
       }
     );
@@ -231,7 +249,6 @@ function createBootstrapApi({
       return renderLoginOnlyPage(config, env);
     }
     await kvPutValue(env, kvBootstrapKeysShownOnce, "1");
-    const keyManagementDocsUrl = getDocsSectionUrl(env, "key-management");
     const docsUrl = getDocsBaseUrl(env);
 
     return new Response(
@@ -269,7 +286,8 @@ function createBootstrapApi({
 
   async function handleStatusPage(env, request) {
     ensureKvBinding(env);
-    if (new URL(request.url).pathname === "/" && !isBrowserVerified(request)) {
+    const challengeConfig = getBrowserChallengeConfig(env);
+    if (new URL(request.url).pathname === "/" && challengeConfig.enabled && !isBrowserVerified(request)) {
       return handleBrowserChallengePage(env);
     }
     const [proxyKey, adminKey, shownOnce, config] = await Promise.all([
