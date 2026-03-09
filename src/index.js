@@ -190,9 +190,10 @@ function createWorker(mode = "combined") {
             : isControl
               ? {
                   enableRootProxy: false,
-                  enableStatusBootstrap: true,
+                  enableStatusBootstrap: false,
                   enableRequest: false,
                   enableSelfRotate: false,
+                  exposeStatusBootstrapAtRoot: true,
                 }
               : undefined,
         });

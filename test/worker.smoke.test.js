@@ -430,3 +430,23 @@ test("Control worker does not expose /request", SERIAL, async () => {
   });
   assert.equal(response.status, 404);
 });
+
+test("Control worker exposes onboarding at root and hides /_apiproxy", SERIAL, async () => {
+  const env = createEnv({}, {
+    config_json_v1: JSON.stringify(minimalValidConfigPatch()),
+  });
+
+  const rootResponse = await callSpecificWorker(controlWorker, env, {
+    method: "GET",
+    path: "/",
+  });
+  assert.equal(rootResponse.status, 200);
+  const rootHtml = await rootResponse.text();
+  assert.match(rootHtml, /API Transform Proxy/i);
+
+  const legacyResponse = await callSpecificWorker(controlWorker, env, {
+    method: "GET",
+    path: "/_apiproxy/",
+  });
+  assert.equal(legacyResponse.status, 404);
+});

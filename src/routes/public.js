@@ -4,7 +4,15 @@ async function dispatchPublicRoute({ normalizedPath, request, env, ctx, reserved
     enableStatusBootstrap = true,
     enableRequest = true,
     enableSelfRotate = true,
+    exposeStatusBootstrapAtRoot = false,
   } = options;
+
+  if (exposeStatusBootstrapAtRoot && normalizedPath === "/" && request.method === "GET") {
+    return handlers.handleStatusPage(env, request);
+  }
+  if (exposeStatusBootstrapAtRoot && normalizedPath === "/" && request.method === "POST") {
+    return handlers.handleBootstrapPost(env);
+  }
 
   if (enableRootProxy && normalizedPath === "/" && request.method === "GET") {
     if (request.headers.get("X-Proxy-Key")) {
