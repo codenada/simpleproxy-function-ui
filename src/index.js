@@ -50,18 +50,18 @@ import { dispatchAdminRoute } from "./routes/admin.js";
  * - GET /_apiproxy               : status + bootstrap page (shows created keys once)
  * - POST /_apiproxy              : bootstrap keys via JSON (one-time; returns only newly created keys)
  * - POST /_apiproxy/request      : authenticated relay + optional JSONata transform
- * - GET /_apiproxy/admin/version : build version info (admin key required)
+ * - GET /admin/version : build version info (admin key required)
  * - POST /_apiproxy/keys/{proxy|issuer|admin}/rotate : self-rotation using each key kind
- * - POST /_apiproxy/admin/keys/{proxy|issuer|admin}/rotate : admin override rotation
- * - GET/PUT /_apiproxy/admin/config
- * - POST /_apiproxy/admin/config/validate
- * - POST /_apiproxy/admin/config/test-rule
- * - GET/PUT/DELETE /_apiproxy/admin/debug
- * - GET /_apiproxy/admin/debug/last
- * - GET /_apiproxy/admin/live-log/stream
- * - GET /_apiproxy/admin/swagger
- * - GET /_apiproxy/admin/swagger/openapi.json
- * - PUT/DELETE /_apiproxy/admin/debug/loggingSecret
+ * - POST /admin/keys/{proxy|issuer|admin}/rotate : admin override rotation
+ * - GET/PUT /admin/config
+ * - POST /admin/config/validate
+ * - POST /admin/config/test-rule
+ * - GET/PUT/DELETE /admin/debug
+ * - GET /admin/debug/last
+ * - GET /admin/live-log/stream
+ * - GET /admin/swagger
+ * - GET /admin/swagger/openapi.json
+ * - PUT/DELETE /admin/debug/loggingSecret
  */
 
 const KV_PROXY_KEY = "proxy_key";
@@ -100,7 +100,7 @@ const AUTH_PROFILE_FIELDS = [
   "secondary_expires_at_ms",
 ];
 const RESERVED_ROOT = "/_apiproxy";
-const ADMIN_ROOT = `${RESERVED_ROOT}/admin`;
+const ADMIN_ROOT = "/admin";
 const DEFAULT_DOCS_URL = "https://github.com/codenada/simpleproxy-function-dev/blob/main/README.md";
 const DEBUG_MAX_TRACE_CHARS = 32000;
 const DEBUG_MAX_BODY_PREVIEW_CHARS = 4000;
@@ -393,7 +393,9 @@ const observabilityApi = createObservabilityApi({
   buildHttpRequestInit: (req, config, env) => requestAuthApi.buildHttpRequestInit(req, config, env),
 });
 
-const adminUiApi = createAdminUiApi();
+const adminUiApi = createAdminUiApi({
+  adminRoot: ADMIN_ROOT,
+});
 
 const swaggerApi = createSwaggerApi({
   htmlPage,

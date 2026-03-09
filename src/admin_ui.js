@@ -1,12 +1,12 @@
 import { renderAdminPage, renderAdminPageScript } from "./ui.js";
 
-function createAdminUiApi() {
+function createAdminUiApi({ adminRoot }) {
   function handleAdminPage() {
-    return renderAdminPage();
+    return renderAdminPage(adminRoot);
   }
 
   function handleAdminPageScriptAsset() {
-    return new Response(renderAdminPageScript(), {
+    return new Response(renderAdminPageScript(adminRoot), {
       headers: {
         "content-type": "application/javascript; charset=utf-8",
         "cache-control": "no-store",

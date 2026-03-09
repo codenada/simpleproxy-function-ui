@@ -101,9 +101,10 @@ export function renderSecretFieldScript() {
   return `<script>\n${js}\n</script>`;
 }
 
-export function renderAdminPage() {
+export function renderAdminPage(adminRoot = "/admin") {
   const bodyHtml = renderTemplate("admin_page", {
     favicon_data_url: FAVICON_DATA_URL,
+    admin_root: String(adminRoot || "/admin"),
   });
   return new Response(
     htmlPage("", bodyHtml),
@@ -111,6 +112,8 @@ export function renderAdminPage() {
   );
 }
 
-export function renderAdminPageScript() {
-  return templates.admin_page_js || "";
+export function renderAdminPageScript(adminRoot = "/admin") {
+  return renderTemplate("admin_page_js", {
+    admin_root: String(adminRoot || "/admin"),
+  });
 }

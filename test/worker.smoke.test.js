@@ -308,7 +308,7 @@ test("Admin endpoints accept both X-Admin-Key and bearer access token", SERIAL, 
 
   const byKeyResponse = await callWorker(env, {
     method: "GET",
-    path: "/_apiproxy/admin/version",
+    path: "/admin/version",
     headers: {
       "x-admin-key": adminKey,
     },
@@ -317,7 +317,7 @@ test("Admin endpoints accept both X-Admin-Key and bearer access token", SERIAL, 
 
   const tokenResponse = await callWorker(env, {
     method: "POST",
-    path: "/_apiproxy/admin/access-token",
+    path: "/admin/access-token",
     headers: {
       "x-admin-key": adminKey,
     },
@@ -329,7 +329,7 @@ test("Admin endpoints accept both X-Admin-Key and bearer access token", SERIAL, 
 
   const byBearerResponse = await callWorker(env, {
     method: "GET",
-    path: "/_apiproxy/admin/version",
+    path: "/admin/version",
     headers: {
       authorization: `Bearer ${token}`,
     },
@@ -350,7 +350,7 @@ test("Admin config PUT roundtrip is reflected in status page", SERIAL, async (t)
 
   const putResponse = await callWorker(env, {
     method: "PUT",
-    path: "/_apiproxy/admin/config",
+    path: "/admin/config",
     headers: {
       "x-admin-key": adminKey,
       "content-type": "application/json",
@@ -386,7 +386,7 @@ test("Live log stream returns LOGGING_DISABLED when debug is off", SERIAL, async
 
   const response = await callWorker(env, {
     method: "GET",
-    path: "/_apiproxy/admin/live-log/stream",
+    path: "/admin/live-log/stream",
     headers: {
       "x-admin-key": adminKey,
     },
@@ -404,7 +404,7 @@ test("Runtime worker does not expose admin routes", SERIAL, async () => {
   const { adminKey } = await bootstrapKeys(env);
   const response = await callSpecificWorker(runtimeWorker, env, {
     method: "GET",
-    path: "/_apiproxy/admin/version",
+    path: "/admin/version",
     headers: {
       "x-admin-key": adminKey,
     },
