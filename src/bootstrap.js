@@ -32,14 +32,14 @@ function createBootstrapApi({
   function getDocsBaseUrl(env) {
     const adminConfig = loadAdminConfig();
     const configured = String(adminConfig?.admin?.docs_url || "").trim();
-    const raw = String(env?.DOCS_URL || configured || defaultDocsUrl || "").trim();
+    const raw = String(configured || defaultDocsUrl || "").trim();
     return (raw || defaultDocsUrl).replace(/#.*$/, "");
   }
 
   function getDocsSectionUrl(env, sectionAnchor) {
     const adminConfig = loadAdminConfig();
     const configured = String(adminConfig?.admin?.docs_url || "").trim();
-    const raw = String(env?.DOCS_URL || configured || defaultDocsUrl || "").trim();
+    const raw = String(configured || defaultDocsUrl || "").trim();
     const base = raw ? raw.replace(/#.*$/, "") : defaultDocsUrl;
     return `${base}#${sectionAnchor}`;
   }
