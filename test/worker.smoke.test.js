@@ -500,3 +500,36 @@ test("Control worker exposes onboarding at root and hides /_apiproxy", SERIAL, a
   });
   assert.equal(legacyResponse.status, 404);
 });
+
+test("Control admin page requires auth and loads from tokenized admin URL", SERIAL, async () => {
+  const env = createEnv({
+    BROWSER_CHALLENGE_DIFFICULTY: "2",
+  });
+  const { adminKey } = await bootstrapKeys(env);
+
+  const lockedResponse = await callSpecificWorker(controlWorker, env, {
+    method: "GET",
+    path: "/admin",
+  });
+  assert.equal(lockedResponse.status, 404);
+
+  const tokenResponse = await callSpecificWorker(controlWorker, env, {
+    method: "POST",
+    path: "/admin/access-token",
+    headers: { "x-admin-key": adminKey },
+  });
+  assert.equal(tokenResponse.status, 200);
+  const tokenPayload = await tokenResponse.json();
+  const adminUrl = String(tokenPayload?.data?.admin_url || "");
+  assert.match(adminUrl, /\/admin\?admin_access_token=/i);
+  const token = String(tokenPayload?.data?.access_token || "");
+  assert.ok(token);
+
+  const authedPageResponse = await callSpecificWorker(controlWorker, env, {
+    method: "GET",
+    path: `/admin?admin_access_token=${encodeURIComponent(token)}`,
+  });
+  assert.equal(authedPageResponse.status, 200);
+  const html = await authedPageResponse.text();
+  assert.match(html, /Admin Console/i);
+});

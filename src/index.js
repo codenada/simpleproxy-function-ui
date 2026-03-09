@@ -879,8 +879,8 @@ async function requireAdminAuth(request, env) {
   await keyAuthApi.requireAdminAuth(request, env);
 }
 
-async function handleAdminAccessTokenPost(env) {
-  return keyAuthApi.handleAdminAccessTokenPost(env);
+async function handleAdminAccessTokenPost(request, env) {
+  return keyAuthApi.handleAdminAccessTokenPost(request, env);
 }
 
 function resolveProxyHostForRequest(config) {

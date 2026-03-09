@@ -162,6 +162,11 @@ function createKeyAuthApi({
   }
 
   function getAdminAccessTokenFromRequest(request) {
+    try {
+      const url = new URL(request.url);
+      const queryToken = String(url.searchParams.get("admin_access_token") || "").trim();
+      if (queryToken) return queryToken;
+    } catch {}
     const explicit = String(request.headers.get("X-Admin-Access-Token") || "").trim();
     if (explicit) return explicit;
     const auth = String(request.headers.get("authorization") || "");
@@ -202,7 +207,7 @@ function createKeyAuthApi({
     await requireAdminKey(request, env);
   }
 
-  async function handleAdminAccessTokenPost(env) {
+  async function handleAdminAccessTokenPost(request, env) {
     const ttlSeconds = Math.max(60, getEnvInt(env, "ADMIN_ACCESS_TOKEN_TTL_SECONDS", defaults.ADMIN_ACCESS_TOKEN_TTL_SECONDS));
     const nowSec = Math.floor(Date.now() / 1000);
     const expiresAtMs = (nowSec + ttlSeconds) * 1000;
@@ -217,10 +222,13 @@ function createKeyAuthApi({
       },
       secret
     );
+    const requestUrl = new URL(request.url);
+    const adminUrl = `${requestUrl.origin}/admin?admin_access_token=${encodeURIComponent(token)}`;
     return jsonResponse(200, {
       ok: true,
       data: {
         access_token: token,
+        admin_url: adminUrl,
         expires_at_ms: expiresAtMs,
         ttl_seconds: ttlSeconds,
       },

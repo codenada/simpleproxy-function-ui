@@ -19,7 +19,8 @@ async function initAdminLogin() {
       return;
     }
     try { sessionStorage.setItem('apiproxy_admin_access_token_v1', payload.data.access_token); } catch {}
-    window.location.href = '{{admin_root}}';
+    const nextUrl = String(payload?.data?.admin_url || '').trim();
+    window.location.href = nextUrl || '{{admin_root}}';
   } catch {
     if (msg) msg.textContent = 'Login failed. Try again.';
   }

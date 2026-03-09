@@ -3,6 +3,14 @@ async function dispatchAdminRoute({ normalizedPath, request, env, adminRoot, han
     return handlers.handleBrowserVerifyPost(request, env);
   }
   if (normalizedPath === adminRoot && request.method === "GET") {
+    try {
+      await auth.requireAdminAuth(request, env);
+    } catch {
+      return new Response(JSON.stringify({ error: { code: "NOT_FOUND", message: "Route not found" } }), {
+        status: 404,
+        headers: { "content-type": "application/json; charset=utf-8" },
+      });
+    }
     return handlers.handleAdminPage();
   }
   if (normalizedPath === `${adminRoot}/assets/admin-page.js` && request.method === "GET") {
@@ -18,7 +26,7 @@ async function dispatchAdminRoute({ normalizedPath, request, env, adminRoot, han
   }
   if (normalizedPath === `${adminRoot}/access-token` && request.method === "POST") {
     await auth.requireAdminKey(request, env);
-    return handlers.handleAdminAccessTokenPost(env);
+    return handlers.handleAdminAccessTokenPost(request, env);
   }
   if (normalizedPath === `${adminRoot}/version` && request.method === "GET") {
     await auth.requireAdminAuth(request, env);

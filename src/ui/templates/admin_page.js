@@ -2433,7 +2433,13 @@
           el('sandbox-body')?.addEventListener('input', sandboxPreviewRequest);
           el('sandbox-send-btn')?.addEventListener('click', sandboxSend);
            try {
-             const token = sessionStorage.getItem(ADMIN_ACCESS_TOKEN_STORAGE) || '';
+             const params = new URLSearchParams(window.location.search || '');
+             const queryToken = String(params.get('admin_access_token') || '').trim();
+             if (queryToken) {
+               try { sessionStorage.setItem(ADMIN_ACCESS_TOKEN_STORAGE, queryToken); } catch {}
+               try { window.history.replaceState({}, '', ADMIN_ROOT); } catch {}
+             }
+             const token = queryToken || sessionStorage.getItem(ADMIN_ACCESS_TOKEN_STORAGE) || '';
             if (token) {
               setCurrentKey(token);
               refreshOverview();
