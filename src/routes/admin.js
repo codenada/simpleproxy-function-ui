@@ -1,4 +1,7 @@
 async function dispatchAdminRoute({ normalizedPath, request, env, adminRoot, handlers, auth }) {
+  if (normalizedPath === `${adminRoot}/browser-verify` && request.method === "POST") {
+    return handlers.handleBrowserVerifyPost(request, env);
+  }
   if (normalizedPath === adminRoot && request.method === "GET") {
     return handlers.handleAdminPage();
   }

@@ -479,6 +479,7 @@ function buildRuntime() {
       handleRootProxyRequest: (request, env, ctx) => proxyRuntimeApi.handleRootProxyRequest(request, env, ctx),
       handleStatusPage: (env, request) => bootstrapApi.handleStatusPage(env, request),
       handleBootstrapPost: (env) => bootstrapApi.handleBootstrapPost(env),
+      handleBrowserVerifyPost: (request, env) => bootstrapApi.handleBrowserVerifyPost(request, env),
       handleRequest: (request, env, ctx) => proxyRuntimeApi.handleRequest(request, env, ctx),
       handleRotateByKind,
       handleAdminPage: () => adminUiApi.handleAdminPage(),

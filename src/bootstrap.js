@@ -63,6 +63,150 @@ function createBootstrapApi({
     };
   }
 
+  function parseCookies(request) {
+    const raw = String(request?.headers?.get("cookie") || "");
+    const out = new Map();
+    if (!raw) return out;
+    for (const pair of raw.split(";")) {
+      const idx = pair.indexOf("=");
+      if (idx <= 0) continue;
+      const k = pair.slice(0, idx).trim();
+      const v = pair.slice(idx + 1).trim();
+      if (!k) continue;
+      out.set(k, v);
+    }
+    return out;
+  }
+
+  function isBrowserVerified(request) {
+    const cookies = parseCookies(request);
+    return cookies.get("apiproxy_browser_verified") === "1";
+  }
+
+  function randomHex(bytes = 16) {
+    const arr = new Uint8Array(bytes);
+    crypto.getRandomValues(arr);
+    return Array.from(arr, (b) => b.toString(16).padStart(2, "0")).join("");
+  }
+
+  async function sha256Hex(input) {
+    const bytes = new TextEncoder().encode(String(input));
+    const digest = await crypto.subtle.digest("SHA-256", bytes);
+    return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+  }
+
+  function getBrowserChallengeDifficulty(env) {
+    const raw = Number(env?.BROWSER_CHALLENGE_DIFFICULTY);
+    if (!Number.isFinite(raw)) return 4;
+    return Math.max(1, Math.min(6, Math.floor(raw)));
+  }
+
+  async function createBrowserChallenge(env) {
+    const challengeId = randomHex(16);
+    const difficulty = getBrowserChallengeDifficulty(env);
+    await kvStore(env).put(
+      `browser_challenge:${challengeId}`,
+      JSON.stringify({ difficulty, created_at_ms: Date.now() }),
+      { expirationTtl: 300 }
+    );
+    return { challengeId, difficulty };
+  }
+
+  async function handleBrowserChallengePage(env) {
+    const { challengeId, difficulty } = await createBrowserChallenge(env);
+    const targetPrefix = "0".repeat(Math.max(1, Math.min(6, Number(difficulty) || 4)));
+    return new Response(
+      htmlPage(
+        "API Transform Proxy",
+        `${renderOnboardingHeader()}
+         <h2 style="margin:0 0 10px 0;">Browser Check</h2>
+         <p style="margin:0 0 10px 0;color:#334155;">Verifying browser JavaScript support before loading admin onboarding.</p>
+         <div id="browser-check-status" style="font-size:13px;color:#475569;">Computing challenge...</div>
+         <script>
+           (function () {
+             const challengeId = ${JSON.stringify(challengeId)};
+             const targetPrefix = ${JSON.stringify(targetPrefix)};
+             const endpoint = ${JSON.stringify(`${adminRoot}/browser-verify`)};
+             const statusNode = document.getElementById('browser-check-status');
+             const enc = new TextEncoder();
+             async function sha256Hex(input) {
+               const digest = await crypto.subtle.digest('SHA-256', enc.encode(input));
+               const bytes = Array.from(new Uint8Array(digest));
+               return bytes.map((b) => b.toString(16).padStart(2, '0')).join('');
+             }
+             async function solve() {
+               let nonce = 0;
+               while (true) {
+                 const hash = await sha256Hex(challengeId + ':' + String(nonce));
+                 if (hash.startsWith(targetPrefix)) return nonce;
+                 nonce += 1;
+                 if (nonce % 250 === 0 && statusNode) statusNode.textContent = 'Computing challenge... (' + nonce + ')';
+               }
+             }
+             (async () => {
+               try {
+                 const nonce = await solve();
+                 const res = await fetch(endpoint, {
+                   method: 'POST',
+                   headers: { 'content-type': 'application/json' },
+                   body: JSON.stringify({ challenge_id: challengeId, nonce }),
+                 });
+                 if (!res.ok) throw new Error('verification failed');
+                 window.location.reload();
+               } catch {
+                 if (statusNode) statusNode.textContent = 'Browser verification failed. Refresh and try again.';
+               }
+             })();
+           })();
+         </script>`
+      ),
+      { headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } }
+    );
+  }
+
+  async function handleBrowserVerifyPost(request, env) {
+    ensureKvBinding(env);
+    let payload = null;
+    try {
+      payload = await request.json();
+    } catch {
+      throw new HttpError(400, "INVALID_JSON", "Request body must be valid JSON.");
+    }
+    const challengeId = String(payload?.challenge_id || "").trim();
+    const nonce = String(payload?.nonce ?? "").trim();
+    if (!challengeId || !nonce) {
+      throw new HttpError(400, "INVALID_REQUEST", "challenge_id and nonce are required.");
+    }
+    const raw = await kvStore(env).get(`browser_challenge:${challengeId}`);
+    if (!raw) {
+      throw new HttpError(400, "BROWSER_CHALLENGE_EXPIRED", "Browser challenge expired. Refresh and try again.");
+    }
+    let challenge = null;
+    try {
+      challenge = JSON.parse(raw);
+    } catch {
+      throw new HttpError(500, "INVALID_CHALLENGE_STATE", "Stored challenge is invalid.");
+    }
+    const difficulty = Math.max(1, Math.min(6, Number(challenge?.difficulty) || 4));
+    const hash = await sha256Hex(`${challengeId}:${nonce}`);
+    const targetPrefix = "0".repeat(difficulty);
+    if (!hash.startsWith(targetPrefix)) {
+      throw new HttpError(400, "INVALID_BROWSER_PROOF", "Browser proof is invalid.");
+    }
+    await kvStore(env).delete(`browser_challenge:${challengeId}`);
+    return new Response(
+      JSON.stringify({ ok: true }),
+      {
+        status: 200,
+        headers: {
+          "content-type": "application/json; charset=utf-8",
+          "cache-control": "no-store",
+          "set-cookie": "apiproxy_browser_verified=1; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=600",
+        },
+      }
+    );
+  }
+
   async function handleInitPage(env, request) {
     ensureKvBinding(env);
     const { createdProxy, createdAdmin } = await bootstrapMissingKeys(env);
@@ -112,6 +256,9 @@ function createBootstrapApi({
 
   async function handleStatusPage(env, request) {
     ensureKvBinding(env);
+    if (new URL(request.url).pathname === "/" && !isBrowserVerified(request)) {
+      return handleBrowserChallengePage(env);
+    }
     const [proxyKey, adminKey, config] = await Promise.all([kvGetValue(env, kvProxyKey), kvGetValue(env, kvAdminKey), loadConfigV1(env)]);
     const proxyInitialized = !!proxyKey;
     const adminInitialized = !!adminKey;
@@ -161,6 +308,7 @@ function createBootstrapApi({
     handleInitPage,
     handleStatusPage,
     handleBootstrapPost,
+    handleBrowserVerifyPost,
   };
 }
 

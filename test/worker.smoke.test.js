@@ -104,6 +104,21 @@ async function bootstrapKeys(env) {
   return { proxyKey, adminKey };
 }
 
+async function sha256Hex(input) {
+  const bytes = new TextEncoder().encode(String(input));
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function solvePowChallenge(challengeId, targetPrefix) {
+  let nonce = 0;
+  while (true) {
+    const hash = await sha256Hex(`${challengeId}:${nonce}`);
+    if (hash.startsWith(targetPrefix)) return nonce;
+    nonce += 1;
+  }
+}
+
 test("GET /_apiproxy initializes missing keys and serves onboarding HTML", SERIAL, async () => {
   const env = createEnv();
 
@@ -432,7 +447,9 @@ test("Control worker does not expose /request", SERIAL, async () => {
 });
 
 test("Control worker exposes onboarding at root and hides /_apiproxy", SERIAL, async () => {
-  const env = createEnv({}, {
+  const env = createEnv({
+    BROWSER_CHALLENGE_DIFFICULTY: "2",
+  }, {
     config_json_v1: JSON.stringify(minimalValidConfigPatch()),
   });
 
@@ -441,8 +458,31 @@ test("Control worker exposes onboarding at root and hides /_apiproxy", SERIAL, a
     path: "/",
   });
   assert.equal(rootResponse.status, 200);
-  const rootHtml = await rootResponse.text();
-  assert.match(rootHtml, /API Transform Proxy/i);
+  const challengeHtml = await rootResponse.text();
+  assert.match(challengeHtml, /Browser Check/i);
+  const idMatch = challengeHtml.match(/const challengeId = "([a-f0-9]+)";/i);
+  const prefixMatch = challengeHtml.match(/const targetPrefix = "(0+)";/i);
+  assert.ok(idMatch?.[1]);
+  assert.ok(prefixMatch?.[1]);
+  const nonce = await solvePowChallenge(idMatch[1], prefixMatch[1]);
+  const verifyResponse = await callSpecificWorker(controlWorker, env, {
+    method: "POST",
+    path: "/admin/browser-verify",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ challenge_id: idMatch[1], nonce }),
+  });
+  assert.equal(verifyResponse.status, 200);
+  const verifyCookie = verifyResponse.headers.get("set-cookie") || "";
+  assert.match(verifyCookie, /apiproxy_browser_verified=1/i);
+
+  const onboardResponse = await callSpecificWorker(controlWorker, env, {
+    method: "GET",
+    path: "/",
+    headers: { cookie: verifyCookie },
+  });
+  assert.equal(onboardResponse.status, 200);
+  const rootHtml = await onboardResponse.text();
+  assert.match(rootHtml, /Login with your Admin Key/i);
 
   const legacyResponse = await callSpecificWorker(controlWorker, env, {
     method: "GET",
