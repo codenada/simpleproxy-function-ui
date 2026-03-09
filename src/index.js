@@ -353,6 +353,7 @@ const keyAuthApi = createKeyAuthApi({
   kvGetValue,
   kvPutValue,
   loadConfigV1: (env) => configApi.loadConfigV1(env),
+  loadAdminConfig,
   getEnvInt,
   defaults: DEFAULTS,
   reservedRoot: RESERVED_ROOT,

@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 function isTemplateAsset(url) {
   if (!url.startsWith('file://')) return false;
   const path = fileURLToPath(url);
-  return /\/src\/ui\/templates\/.*\.(html|js)$/.test(path) || /\/src\/admin_config\.yaml$/.test(path);
+  return /\/src\/ui\/templates\/.*\.(html|js)$/.test(path) || /\/src\/admin_master\.yaml$/.test(path);
 }
 
 export async function resolve(specifier, context, defaultResolve) {

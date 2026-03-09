@@ -1,8 +1,14 @@
-import adminConfigYaml from "./admin_config.yaml";
+import adminConfigYaml from "./admin_master.yaml";
 
 const DEFAULT_ADMIN_CONFIG = {
   admin: {
     docs_url: "",
+    login_page: {
+      rpm_rate_limit: 60,
+    },
+    get_admin_token_endpoint: {
+      rpm_rate_limit: 10,
+    },
     browser_challenge: {
       enabled: true,
       difficulty: 4,
@@ -26,6 +32,16 @@ function normalizeAdminConfig(raw) {
     admin: {
       ...DEFAULT_ADMIN_CONFIG.admin,
       ...(raw?.admin && typeof raw.admin === "object" ? raw.admin : {}),
+      login_page: {
+        ...DEFAULT_ADMIN_CONFIG.admin.login_page,
+        ...(raw?.admin?.login_page && typeof raw.admin.login_page === "object" ? raw.admin.login_page : {}),
+      },
+      get_admin_token_endpoint: {
+        ...DEFAULT_ADMIN_CONFIG.admin.get_admin_token_endpoint,
+        ...(raw?.admin?.get_admin_token_endpoint && typeof raw.admin.get_admin_token_endpoint === "object"
+          ? raw.admin.get_admin_token_endpoint
+          : {}),
+      },
       browser_challenge: {
         ...DEFAULT_ADMIN_CONFIG.admin.browser_challenge,
         ...(raw?.admin?.browser_challenge && typeof raw.admin.browser_challenge === "object"
@@ -36,6 +52,18 @@ function normalizeAdminConfig(raw) {
   };
 
   merged.admin.browser_challenge.enabled = !!merged.admin.browser_challenge.enabled;
+  merged.admin.login_page.rpm_rate_limit = toPositiveInt(
+    merged.admin.login_page.rpm_rate_limit,
+    DEFAULT_ADMIN_CONFIG.admin.login_page.rpm_rate_limit,
+    1,
+    10000
+  );
+  merged.admin.get_admin_token_endpoint.rpm_rate_limit = toPositiveInt(
+    merged.admin.get_admin_token_endpoint.rpm_rate_limit,
+    DEFAULT_ADMIN_CONFIG.admin.get_admin_token_endpoint.rpm_rate_limit,
+    1,
+    10000
+  );
   merged.admin.browser_challenge.difficulty = toPositiveInt(
     merged.admin.browser_challenge.difficulty,
     DEFAULT_ADMIN_CONFIG.admin.browser_challenge.difficulty,
@@ -81,6 +109,16 @@ function parseSimpleAdminYaml(text) {
   const cookieRaw = parseField("verified_cookie_ttl_seconds");
   if (cookieRaw !== undefined) browser.verified_cookie_ttl_seconds = Number(cookieRaw);
 
+  const loginPage = {};
+  const loginRateMatch = src.match(/^\s*login_page:\s*$[\s\S]*?^\s*rpm_rate_limit:\s*([0-9]+)\s*$/m);
+  if (loginRateMatch?.[1]) loginPage.rpm_rate_limit = Number(loginRateMatch[1]);
+
+  const tokenEndpoint = {};
+  const tokenRateMatch = src.match(/^\s*get_admin_token_endpoint:\s*$[\s\S]*?^\s*rpm_rate_limit:\s*([0-9]+)\s*$/m);
+  if (tokenRateMatch?.[1]) tokenEndpoint.rpm_rate_limit = Number(tokenRateMatch[1]);
+
+  out.login_page = loginPage;
+  out.get_admin_token_endpoint = tokenEndpoint;
   out.browser_challenge = browser;
   return { admin: out };
 }

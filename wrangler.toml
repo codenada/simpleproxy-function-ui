@@ -8,5 +8,5 @@ binding = "CONFIG"
 
 [[rules]]
 type = "Text"
-globs = ["**/ui/templates/*.js", "**/admin_config.yaml"]
+globs = ["**/ui/templates/*.js", "**/admin_master.yaml"]
 fallthrough = true

@@ -8,6 +8,8 @@ import {
   renderSecretFieldScript,
 } from "./ui.js";
 
+const loginPageRateLimitState = new Map();
+
 function createBootstrapApi({
   constants,
   ensureKvBinding,
@@ -116,6 +118,49 @@ function createBootstrapApi({
       challengeTtlSeconds,
       verifiedCookieTtlSeconds,
     };
+  }
+
+  function getClientIp(request) {
+    const direct = String(request.headers.get("cf-connecting-ip") || "").trim();
+    if (direct) return direct;
+    const forwarded = String(request.headers.get("x-forwarded-for") || "").trim();
+    if (!forwarded) return "unknown";
+    return forwarded.split(",")[0].trim() || "unknown";
+  }
+
+  function checkRpmRateLimit(map, key, rpmLimit) {
+    const limit = Number(rpmLimit);
+    if (!Number.isFinite(limit) || limit <= 0) return true;
+    const windowMinute = Math.floor(Date.now() / 60000);
+    const current = map.get(key);
+    if (!current || current.windowMinute !== windowMinute) {
+      map.set(key, { windowMinute, count: 1 });
+      return true;
+    }
+    if (current.count >= limit) return false;
+    current.count += 1;
+    return true;
+  }
+
+  function enforceLoginPageRateLimit(request) {
+    const adminConfig = loadAdminConfig();
+    const rpmLimit = Number(adminConfig?.admin?.login_page?.rpm_rate_limit || 60);
+    const key = getClientIp(request);
+    const allowed = checkRpmRateLimit(loginPageRateLimitState, key, rpmLimit);
+    if (allowed) return null;
+    return new Response(
+      htmlPage(
+        "Rate limited",
+        "<p>Too many requests. Please wait a minute and try again.</p>"
+      ),
+      {
+        status: 429,
+        headers: {
+          "content-type": "text/html; charset=utf-8",
+          "cache-control": "no-store",
+        },
+      }
+    );
   }
 
   async function createBrowserChallenge(env) {
@@ -286,6 +331,8 @@ function createBootstrapApi({
 
   async function handleStatusPage(env, request) {
     ensureKvBinding(env);
+    const rateLimitResponse = enforceLoginPageRateLimit(request);
+    if (rateLimitResponse) return rateLimitResponse;
     const challengeConfig = getBrowserChallengeConfig(env);
     if (new URL(request.url).pathname === "/" && challengeConfig.enabled && !isBrowserVerified(request)) {
       return handleBrowserChallengePage(env);

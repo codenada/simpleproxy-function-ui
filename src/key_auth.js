@@ -1,5 +1,7 @@
 import { HttpError } from "./lib.js";
 
+const adminTokenRateLimitState = new Map();
+
 function createKeyAuthApi({
   constants,
   ensureKvBinding,
@@ -7,6 +9,7 @@ function createKeyAuthApi({
   kvGetValue,
   kvPutValue,
   loadConfigV1,
+  loadAdminConfig,
   getEnvInt,
   defaults,
   reservedRoot,
@@ -19,6 +22,37 @@ function createKeyAuthApi({
   signJwtHs256,
   verifyJwtHs256,
 }) {
+  function getClientIp(request) {
+    const direct = String(request.headers.get("cf-connecting-ip") || "").trim();
+    if (direct) return direct;
+    const forwarded = String(request.headers.get("x-forwarded-for") || "").trim();
+    if (!forwarded) return "unknown";
+    return forwarded.split(",")[0].trim() || "unknown";
+  }
+
+  function checkRpmRateLimit(map, key, rpmLimit) {
+    const limit = Number(rpmLimit);
+    if (!Number.isFinite(limit) || limit <= 0) return true;
+    const windowMinute = Math.floor(Date.now() / 60000);
+    const current = map.get(key);
+    if (!current || current.windowMinute !== windowMinute) {
+      map.set(key, { windowMinute, count: 1 });
+      return true;
+    }
+    if (current.count >= limit) return false;
+    current.count += 1;
+    return true;
+  }
+
+  function enforceAdminTokenRpm(request) {
+    const adminConfig = loadAdminConfig();
+    const rpmLimit = Number(adminConfig?.admin?.get_admin_token_endpoint?.rpm_rate_limit || 10);
+    const key = getClientIp(request);
+    const allowed = checkRpmRateLimit(adminTokenRateLimitState, key, rpmLimit);
+    if (allowed) return;
+    throw new HttpError(429, "RATE_LIMITED", "Too many admin token requests. Please wait and retry.");
+  }
+
   function keyKindConfig(kind) {
     if (kind === "proxy") {
       return {
@@ -208,6 +242,7 @@ function createKeyAuthApi({
   }
 
   async function handleAdminAccessTokenPost(request, env) {
+    enforceAdminTokenRpm(request);
     const ttlSeconds = Math.max(60, getEnvInt(env, "ADMIN_ACCESS_TOKEN_TTL_SECONDS", defaults.ADMIN_ACCESS_TOKEN_TTL_SECONDS));
     const nowSec = Math.floor(Date.now() / 1000);
     const expiresAtMs = (nowSec + ttlSeconds) * 1000;

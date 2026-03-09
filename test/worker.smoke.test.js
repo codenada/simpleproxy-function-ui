@@ -352,6 +352,36 @@ test("Admin endpoints accept both X-Admin-Key and bearer access token", SERIAL, 
   assert.equal(byBearerResponse.status, 200);
 });
 
+test("Admin access-token endpoint enforces RPM limit", SERIAL, async () => {
+  const env = createEnv();
+  const { adminKey } = await bootstrapKeys(env);
+  const ip = "198.51.100.77";
+
+  for (let i = 0; i < 10; i += 1) {
+    const response = await callWorker(env, {
+      method: "POST",
+      path: "/admin/access-token",
+      headers: {
+        "x-admin-key": adminKey,
+        "cf-connecting-ip": ip,
+      },
+    });
+    assert.equal(response.status, 200);
+  }
+
+  const limited = await callWorker(env, {
+    method: "POST",
+    path: "/admin/access-token",
+    headers: {
+      "x-admin-key": adminKey,
+      "cf-connecting-ip": ip,
+    },
+  });
+  assert.equal(limited.status, 429);
+  const payload = await limited.json();
+  assert.equal(payload?.error?.code, "RATE_LIMITED");
+});
+
 test("Admin config PUT roundtrip is reflected in status page", SERIAL, async (t) => {
   try {
     await import("yaml");
