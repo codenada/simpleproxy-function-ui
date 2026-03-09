@@ -23,6 +23,7 @@ function createBootstrapApi({
     kvAdminKey,
     kvProxyPrimaryCreatedAt,
     kvAdminPrimaryCreatedAt,
+    kvBootstrapKeysShownOnce,
     adminRoot,
     defaultDocsUrl,
   } = constants;
@@ -207,9 +208,29 @@ function createBootstrapApi({
     );
   }
 
+  function renderLoginOnlyPage(config, env) {
+    const docsUrl = getDocsBaseUrl(env);
+    const proxyName = String(config?.proxyName || "").trim();
+    return new Response(
+      htmlPage(
+        "API Transform Proxy",
+        `${renderOnboardingHeader(proxyName)}
+       <h2 style="margin:0 0 10px 0;">Step 2 - View/Configure This Proxy</h2>
+       ${renderAdminLoginOptions(docsUrl)}
+       ${renderInitAdminLoginScript(adminRoot)}`
+      ),
+      { headers: { "content-type": "text/html; charset=utf-8" } }
+    );
+  }
+
   async function handleInitPage(env, request) {
     ensureKvBinding(env);
     const { createdProxy, createdAdmin } = await bootstrapMissingKeys(env);
+    if (!createdProxy || !createdAdmin) {
+      const config = await loadConfigV1(env);
+      return renderLoginOnlyPage(config, env);
+    }
+    await kvPutValue(env, kvBootstrapKeysShownOnce, "1");
     const keyManagementDocsUrl = getDocsSectionUrl(env, "key-management");
     const docsUrl = getDocsBaseUrl(env);
 
@@ -225,25 +246,17 @@ function createBootstrapApi({
        </div>
        ${renderSecretField(
          "Admin API Secret (To administer this proxy)",
-         createdAdmin || "••••••••••••••••••••••••••••••••",
+         createdAdmin,
          "admin-api-secret",
-         createdAdmin
-           ? "API Key (New). Copy to a safe place. This key cannot be viewed more than once."
-           : `API Key (Previously Created). This key cannot be viewed. See <a href="${escapeHtml(
-               keyManagementDocsUrl
-             )}" target="_blank" rel="noopener noreferrer">Rotating keys</a> to generate new keys.`,
-         !!createdAdmin
+         "API Key (New). Copy to a safe place. This key cannot be viewed more than once.",
+         true
        )}
        ${renderSecretField(
          "Requestor API Secret (To call endpoints through this proxy)",
-         createdProxy || "••••••••••••••••••••••••••••••••",
+         createdProxy,
          "requestor-api-secret",
-         createdProxy
-           ? "API Key (New). Copy to a safe place. This key cannot be viewed more than once."
-           : `API Key (Previously Created). This key cannot be viewed. See <a href="${escapeHtml(
-               keyManagementDocsUrl
-             )}" target="_blank" rel="noopener noreferrer">Rotating keys</a> to generate new keys.`,
-         !!createdProxy
+         "API Key (New). Copy to a safe place. This key cannot be viewed more than once.",
+         true
        )}
        <h2 style="margin:16px 0 10px 0;">Step 2 - View/Configure This Proxy</h2>
        ${renderAdminLoginOptions(docsUrl)}
@@ -259,25 +272,19 @@ function createBootstrapApi({
     if (new URL(request.url).pathname === "/" && !isBrowserVerified(request)) {
       return handleBrowserChallengePage(env);
     }
-    const [proxyKey, adminKey, config] = await Promise.all([kvGetValue(env, kvProxyKey), kvGetValue(env, kvAdminKey), loadConfigV1(env)]);
+    const [proxyKey, adminKey, shownOnce, config] = await Promise.all([
+      kvGetValue(env, kvProxyKey),
+      kvGetValue(env, kvAdminKey),
+      kvGetValue(env, kvBootstrapKeysShownOnce),
+      loadConfigV1(env),
+    ]);
     const proxyInitialized = !!proxyKey;
     const adminInitialized = !!adminKey;
-    if (!proxyInitialized || !adminInitialized) {
+    const isTrueFirstRun = !shownOnce && !proxyInitialized && !adminInitialized;
+    if (isTrueFirstRun) {
       return handleInitPage(env, request);
     }
-    const docsUrl = getDocsBaseUrl(env);
-    const proxyName = String(config?.proxyName || "").trim();
-
-    return new Response(
-      htmlPage(
-        "API Transform Proxy",
-        `${renderOnboardingHeader(proxyName)}
-       <h2 style="margin:0 0 10px 0;">Step 2 - View/Configure This Proxy</h2>
-       ${renderAdminLoginOptions(docsUrl)}
-       ${renderInitAdminLoginScript(adminRoot)}`
-      ),
-      { headers: { "content-type": "text/html; charset=utf-8" } }
-    );
+    return renderLoginOnlyPage(config, env);
   }
 
   async function handleBootstrapPost(env) {

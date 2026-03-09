@@ -1,6 +1,6 @@
 # simpleproxy-function-ui
 
-Generated from core repo commit 0e92df097c9dca1833e32651b8f19f62b1fae614.
+Generated from core repo commit 2d436a0f5511c2db13cbfbebe9e959066c2c9684.
 
 Entrypoint: src/control_entry.js
 Deploy: wrangler deploy

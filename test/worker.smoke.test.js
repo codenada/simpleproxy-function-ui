@@ -481,8 +481,18 @@ test("Control worker exposes onboarding at root and hides /_apiproxy", SERIAL, a
     headers: { cookie: verifyCookie },
   });
   assert.equal(onboardResponse.status, 200);
-  const rootHtml = await onboardResponse.text();
+  const firstRunHtml = await onboardResponse.text();
+  assert.match(firstRunHtml, /API Key \(New\)/i);
+
+  const afterFirstRunResponse = await callSpecificWorker(controlWorker, env, {
+    method: "GET",
+    path: "/",
+    headers: { cookie: verifyCookie },
+  });
+  assert.equal(afterFirstRunResponse.status, 200);
+  const rootHtml = await afterFirstRunResponse.text();
   assert.match(rootHtml, /Login with your Admin Key/i);
+  assert.doesNotMatch(rootHtml, /API Key \(New\)/i);
 
   const legacyResponse = await callSpecificWorker(controlWorker, env, {
     method: "GET",

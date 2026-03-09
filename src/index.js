@@ -409,6 +409,7 @@ const bootstrapApi = createBootstrapApi({
     kvAdminKey: KV_ADMIN_KEY,
     kvProxyPrimaryCreatedAt: KV_PROXY_PRIMARY_KEY_CREATED_AT,
     kvAdminPrimaryCreatedAt: KV_ADMIN_PRIMARY_KEY_CREATED_AT,
+    kvBootstrapKeysShownOnce: "bootstrap_keys_shown_once",
     adminRoot: ADMIN_ROOT,
     defaultDocsUrl: DEFAULT_DOCS_URL,
   },
