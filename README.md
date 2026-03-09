@@ -1,13 +1,13 @@
 # simpleproxy-function-ui
 
-Generated from core repo commit b7d77721a2e68c8c201ebd516391d40747e5b37b.
+Generated from core repo commit 6ac53333807515f4f77a04902f5417fbb998d0ff.
 
 Entrypoint: src/control_entry.js
-Deploy: npm run deploy
+Deploy: wrangler deploy
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/codenada/simpleproxy-function-ui)
 
 Cloudflare Import-Repo settings:
 - Build command: (leave blank)
-- Deploy command: npm run deploy
+- Deploy command: wrangler deploy
 - Root directory: /
