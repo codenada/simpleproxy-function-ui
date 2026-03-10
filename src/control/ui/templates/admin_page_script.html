@@ -11,6 +11,7 @@
         let switchTab = null;
         let pendingInboundControlsTab = '';
         const dirtyTabs = new Set();
+        let unsavedModalResolve = null;
         let liveLogStreamAbortController = null;
         let liveLogReconnectTimer = null;
         let liveLogShouldReconnect = false;
@@ -459,9 +460,71 @@
           if (!tabName) return;
           dirtyTabs.delete(tabName);
         }
-        function confirmLeaveDirty(tabName) {
-          if (!dirtyTabs.has(tabName)) return true;
-          return window.confirm('Are you sure you want to leave this page before saving?');
+        async function promptUnsavedChanges() {
+          const modal = el('unsaved-changes-modal');
+          if (!modal || typeof modal.showModal !== 'function') {
+            return window.confirm('Leave without saving changes?') ? 'discard' : 'cancel';
+          }
+          return new Promise((resolve) => {
+            unsavedModalResolve = resolve;
+            if (!modal.open) modal.showModal();
+          });
+        }
+        function resolveUnsavedChanges(action) {
+          const modal = el('unsaved-changes-modal');
+          if (modal?.open) modal.close();
+          const resolve = unsavedModalResolve;
+          unsavedModalResolve = null;
+          if (typeof resolve === 'function') resolve(action);
+        }
+        async function saveTabChanges(tabName) {
+          const beforeDirty = dirtyTabs.has(tabName);
+          if (!beforeDirty) return true;
+          if (tabName === 'debug') await loggingSave();
+          else if (tabName === 'config') await configSave();
+          else if (tabName === 'outbound-auth') await keyRotationSave();
+          else if (tabName === 'inbound-auth') await inboundAuthSave();
+          else if (tabName === 'admin-auth') await adminAuthSave();
+          else if (tabName === 'outbound-transform') await saveTransformConfig('outbound');
+          else if (tabName === 'inbound-transform') await saveTransformConfig('inbound');
+          return !dirtyTabs.has(tabName);
+        }
+        async function discardTabChanges(tabName) {
+          if (!tabName || !dirtyTabs.has(tabName)) return;
+          if (tabName === 'debug') {
+            await loadLoggingStatus();
+            await debugLoadTrace();
+            clearDirty(tabName);
+            return;
+          }
+          if (tabName === 'config') {
+            await configLoad();
+            clearDirty(tabName);
+            return;
+          }
+          if (tabName === 'outbound-auth') {
+            await keyRotationLoad();
+            clearDirty(tabName);
+            return;
+          }
+          if (tabName === 'inbound-auth') {
+            await keyRotationLoad();
+            clearDirty('inbound-auth');
+            return;
+          }
+          if (tabName === 'admin-auth') {
+            await keyRotationLoad();
+            clearDirty('admin-auth');
+            return;
+          }
+          if (tabName === 'outbound-transform' || tabName === 'inbound-transform') {
+            await transformConfigLoad();
+            await headersList();
+            clearDirty('outbound-transform');
+            clearDirty('inbound-transform');
+            return;
+          }
+          clearDirty(tabName);
         }
         function parseProxyNameFromYaml(yamlText) {
           const text = String(yamlText || '');
@@ -948,14 +1011,24 @@
             pendingInboundControlsTab = String(targetTab || '').trim() || 'inbound-transform';
             const modal = el('inbound-controls-warning-modal');
             if (!modal || typeof modal.showModal !== 'function') {
-              setActiveTab(pendingInboundControlsTab);
+              void setActiveTab(pendingInboundControlsTab);
               return;
             }
             if (!modal.open) modal.showModal();
           }
-          function setActiveTab(name) {
+          async function setActiveTab(name) {
             if (name === currentTabName) return;
-            if (!confirmLeaveDirty(currentTabName)) return;
+            if (dirtyTabs.has(currentTabName)) {
+              const decision = await promptUnsavedChanges();
+              if (decision === 'cancel') return;
+              if (decision === 'save') {
+                const saved = await saveTabChanges(currentTabName);
+                if (!saved) return;
+              }
+              if (decision === 'discard') {
+                await discardTabChanges(currentTabName);
+              }
+            }
             if (currentTabName === 'live-log' && name !== 'live-log') {
               stopLiveLogStream();
             }
@@ -1046,16 +1119,16 @@
              if (btn.classList.contains('tab-child')) {
                btn.style.marginLeft = '14px';
              }
-             btn.addEventListener('click', () => {
-               const name = btn.getAttribute('data-tab');
-               if (name === 'inbound-transform' && currentTabName !== 'inbound-transform') {
-                 openInboundControlsWarning(name);
-                 return;
-               }
-               setActiveTab(name);
-             });
+            btn.addEventListener('click', () => {
+              const name = btn.getAttribute('data-tab');
+              if (name === 'inbound-transform' && currentTabName !== 'inbound-transform') {
+                openInboundControlsWarning(name);
+                return;
+              }
+              void setActiveTab(name);
+            });
            });
-          setActiveTab('overview');
+          void setActiveTab('overview');
         }
         function formatOverviewStatus(version, debug, headers, targetHost, proxyName) {
           const versionText = version?.data?.version || 'unknown';
@@ -1782,31 +1855,36 @@
         }
         async function saveTransformConfig(kind) {
            try {
+             const currentPayload = await apiCall(ADMIN_ROOT + '/transform-config', 'GET');
+             const currentData = currentPayload?.data || {};
              const globalEnabled = !!(el('transform-global-enabled-outbound')?.checked || el('transform-global-enabled-inbound')?.checked);
-             const outboundRules = collectRuleDrafts('outbound');
-             const inboundRules = collectRuleDrafts('inbound');
-            const inboundCustomEl = el('inbound-custom-js');
-            const payload = {
-              enabled: globalEnabled,
-              outbound: {
-                enabled: true,
-                custom_js_preprocessor: (el('outbound-custom-js')?.value || '').trim() || null,
-                defaultExpr: el('outbound-default-expr')?.value || '',
-                fallback: el('outbound-fallback')?.value || 'passthrough',
-                rules: outboundRules,
-              },
-              inbound: {
-                enabled: true,
-                ...(inboundCustomEl ? { custom_js_preprocessor: (inboundCustomEl.value || '').trim() || null } : {}),
-                defaultExpr: el('inbound-default-expr')?.value || '',
-                fallback: el('inbound-fallback')?.value || 'passthrough',
-                header_filtering: {
-                  mode: (el('inbound-header-filtering-mode')?.value || 'blacklist'),
-                  names: parseCsvList(el('inbound-header-filtering-names')?.value || ''),
-                },
-                rules: inboundRules,
-              },
-            };
+             const payload = {
+               enabled: globalEnabled,
+               outbound: currentData.outbound || { enabled: true, rules: [] },
+               inbound: currentData.inbound || { enabled: true, rules: [] },
+             };
+             if (kind === 'outbound') {
+               payload.outbound = {
+                 enabled: true,
+                 custom_js_preprocessor: (el('outbound-custom-js')?.value || '').trim() || null,
+                 defaultExpr: el('outbound-default-expr')?.value || '',
+                 fallback: el('outbound-fallback')?.value || 'passthrough',
+                 rules: collectRuleDrafts('outbound'),
+               };
+             } else {
+               const inboundCustomEl = el('inbound-custom-js');
+               payload.inbound = {
+                 enabled: true,
+                 ...(inboundCustomEl ? { custom_js_preprocessor: (inboundCustomEl.value || '').trim() || null } : {}),
+                 defaultExpr: el('inbound-default-expr')?.value || '',
+                 fallback: el('inbound-fallback')?.value || 'passthrough',
+                 header_filtering: {
+                   mode: (el('inbound-header-filtering-mode')?.value || 'blacklist'),
+                   names: parseCsvList(el('inbound-header-filtering-names')?.value || ''),
+                 },
+                 rules: collectRuleDrafts('inbound'),
+               };
+             }
             const out = await apiCall(ADMIN_ROOT + '/transform-config', 'PUT', payload);
             if (kind === 'outbound') setOutput('headers-output', out);
             else setOutput('inbound-transform-output', out);
@@ -2369,6 +2447,13 @@
             el('inbound-controls-warning-modal')?.close();
             pendingInboundControlsTab = '';
             if (switchTab) switchTab('overview');
+          });
+          el('unsaved-save-btn')?.addEventListener('click', () => resolveUnsavedChanges('save'));
+          el('unsaved-discard-btn')?.addEventListener('click', () => resolveUnsavedChanges('discard'));
+          el('unsaved-cancel-btn')?.addEventListener('click', () => resolveUnsavedChanges('cancel'));
+          el('unsaved-changes-modal')?.addEventListener('cancel', (evt) => {
+            evt.preventDefault();
+            resolveUnsavedChanges('cancel');
           });
           el('keys-refresh-link-inbound')?.addEventListener('click', (evt) => {
             evt.preventDefault();

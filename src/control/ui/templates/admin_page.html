@@ -390,4 +390,13 @@
            <button type="button" id="inbound-controls-status-btn">No, go to Status</button>
          </div>
        </dialog>
+       <dialog id="unsaved-changes-modal" style="max-width:520px;border:1px solid #e2e8f0;border-radius:10px;padding:16px;">
+         <p style="margin-top:0;"><b>Unsaved changes</b></p>
+         <p style="margin:8px 0 12px 0;">You have unsaved changes on this page.</p>
+         <div style="display:flex;gap:8px;justify-content:flex-end;">
+           <button type="button" id="unsaved-save-btn">Save Changes</button>
+           <button type="button" id="unsaved-discard-btn">Continue Without Saving</button>
+           <button type="button" id="unsaved-cancel-btn">Cancel</button>
+         </div>
+       </dialog>
 {{admin_page_script_html}}
