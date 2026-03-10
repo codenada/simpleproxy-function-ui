@@ -114,6 +114,11 @@ proxy_access_control:
 logging:
   max_logging_session_seconds: 3600 # 1..604800
 
+targetCredentialRotation:
+  response:
+    ttl_path: data.ttl
+    expires_at_path: null
+
 
 transform:
   enabled: true
@@ -135,7 +140,7 @@ transform:
         - x-proxy-key
         - x-admin-key
         - x-issuer-key
-    rules:
+    rules: []
     # - name: source_request_rule
     #   match_method: [GET, POST]
     #   match_path: ["/v1/*"]
@@ -155,7 +160,7 @@ transform:
         - x-issuer-key
         - set-cookie
         - proxy-authenticate
-    rules:
+    rules: []
     # - name: target_response_errors
     #   match_status: [4xx, 5xx, 422]
     #   match_type: json # json | text | binary | any

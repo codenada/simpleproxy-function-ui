@@ -1,13 +1,18 @@
 # simpleproxy-function-ui
 
-Generated from core repo commit e1887e4290647bab29788bf6cc1350cb86996fe2.
+Generated from core repo commit 5c99bb14ac327a66c7ca8faeed249129d8c6afe6.
 
-Entrypoint: src/control_entry.js
+Entrypoint: src/control/control_entry.js
 Deploy: wrangler deploy
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/codenada/simpleproxy-function-ui)
 
-Cloudflare Import-Repo settings:
+Default: Cloudflare one-click deploy (button above).
+Platform adapter default is Cloudflare via `src/platform/index.js`.
+
+You can replace adapter wiring and use any deployment pipeline in your own repo.
+
+Cloudflare Import-Repo settings (recommended default):
 - Build command: (leave blank)
 - Deploy command: wrangler deploy
 - Root directory: /
