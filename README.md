@@ -1,9 +1,9 @@
 # simpleproxy-function-ui
 
-Generated from core repo commit 4c163e4ef4335ed8515a25bd42d3252a02c3e914.
+Generated from core repo commit 031631df95a0636846e0daebbf7f7415000adb37.
 
 Entrypoint: src/control/control_entry.js
-Deploy: wrangler deploy
+Deploy: npx wrangler deploy
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/codenada/simpleproxy-function-ui)
 
@@ -14,5 +14,5 @@ You can replace adapter wiring and use any deployment pipeline in your own repo.
 
 Cloudflare Import-Repo settings (recommended default):
 - Build command: (leave blank)
-- Deploy command: wrangler deploy
+- Deploy command: npx wrangler deploy
 - Root directory: /
