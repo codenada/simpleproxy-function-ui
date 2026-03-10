@@ -505,9 +505,30 @@ async function loadJsonata() {
 
 function handleVersion(env) {
   const controlEnv = readControlEnv(env);
+  const adminConfig = loadAdminConfig();
+  const admin = adminConfig?.admin || {};
   return jsonResponse(200, {
     ok: true,
-    data: { version: controlEnv.buildVersion, build_timestamp: controlEnv.buildTimestamp || null },
+    data: {
+      version: controlEnv.buildVersion,
+      build_timestamp: controlEnv.buildTimestamp || null,
+      admin_controls: {
+        login_page: {
+          enabled: !!admin?.login_page?.enabled,
+          rpm_rate_limit: Number(admin?.login_page?.rpm_rate_limit || 0) || null,
+        },
+        get_admin_token_endpoint: {
+          enabled: !!admin?.get_admin_token_endpoint?.enabled,
+          rpm_rate_limit: Number(admin?.get_admin_token_endpoint?.rpm_rate_limit || 0) || null,
+        },
+        ip_filter: {
+          enabled: !!admin?.ip_filter?.enabled,
+          allowed_cidrs: Array.isArray(admin?.ip_filter?.allowed_cidrs)
+            ? admin.ip_filter.allowed_cidrs
+            : [],
+        },
+      },
+    },
     meta: {},
   });
 }
