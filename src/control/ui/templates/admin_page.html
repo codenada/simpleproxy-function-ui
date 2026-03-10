@@ -37,7 +37,8 @@
            <button type="button" class="tab-btn tab-child" data-tab="outbound-transform">Outbound Transformations</button>
            <div style="margin-top:6px;font-size:12px;color:#64748b;font-weight:700;text-transform:uppercase;">Inbound</div>
            <button type="button" class="tab-btn tab-child" data-tab="inbound-auth">Inbound Auth</button>
-          <button type="button" class="tab-btn tab-child" data-tab="inbound-transform">Header Filtering</button>
+           <button type="button" class="tab-btn tab-child" data-tab="inbound-traffic-controls">Traffic Controls</button>
+           <button type="button" class="tab-btn tab-child" data-tab="inbound-transform">Header Filtering</button>
            <button type="button" class="tab-btn" data-tab="config">Config</button>
            <a href="#" id="logout-link" style="margin-top:14px;font-size:14px;color:#0f172a;text-decoration:underline;">Log out</a>
          </div>
@@ -306,6 +307,16 @@
           <div style="margin-top:14px;border-top:1px solid #e2e8f0;padding-top:10px;display:flex;justify-content:flex-end;">
             <button type="button" id="footer-save-admin-auth" style="background:#0f172a;color:#fff;border:1px solid #0f172a;padding:8px 14px;border-radius:8px;">Save</button>
           </div>
+        </div>
+        <div id="tab-inbound-traffic-controls" class="tab-panel" style="display:none;">
+          <p><b>Inbound Traffic Controls</b></p>
+          <div style="padding:12px;border:1px solid #ddd;border-radius:8px;line-height:1.6;">
+            Use external network controls whenever possible, and only use in-app controls when edge/network policy is not available.
+          </div>
+          <p style="margin-top:10px;color:#475569;">
+            Current inbound controls (IP filtering and request rate limiting) are configured in runtime config.
+            Review or change them in <a href="#" id="traffic-controls-open-config-link">Config</a>.
+          </p>
         </div>
         <div id="tab-inbound-transform" class="tab-panel" style="display:none;">
            <p><b>Header Filtering</b></p>

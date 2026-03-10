@@ -1008,7 +1008,7 @@
           const btns = document.querySelectorAll('.tab-btn');
           const panels = document.querySelectorAll('.tab-panel');
           function openInboundControlsWarning(targetTab) {
-            pendingInboundControlsTab = String(targetTab || '').trim() || 'inbound-transform';
+            pendingInboundControlsTab = String(targetTab || '').trim() || 'inbound-traffic-controls';
             const modal = el('inbound-controls-warning-modal');
             if (!modal || typeof modal.showModal !== 'function') {
               void setActiveTab(pendingInboundControlsTab);
@@ -1119,14 +1119,14 @@
              if (btn.classList.contains('tab-child')) {
                btn.style.marginLeft = '14px';
              }
-            btn.addEventListener('click', () => {
-              const name = btn.getAttribute('data-tab');
-              if (name === 'inbound-transform' && currentTabName !== 'inbound-transform') {
-                openInboundControlsWarning(name);
-                return;
-              }
-              void setActiveTab(name);
-            });
+             btn.addEventListener('click', () => {
+               const name = btn.getAttribute('data-tab');
+               if (name === 'inbound-traffic-controls' && currentTabName !== 'inbound-traffic-controls') {
+                 openInboundControlsWarning(name);
+                 return;
+               }
+               void setActiveTab(name);
+             });
            });
           void setActiveTab('overview');
         }
@@ -2440,13 +2440,17 @@
            el('delete-header-confirm-btn')?.addEventListener('click', headersDeleteConfirmed);
           el('inbound-controls-continue-btn')?.addEventListener('click', () => {
             el('inbound-controls-warning-modal')?.close();
-            if (switchTab) switchTab(pendingInboundControlsTab || 'inbound-transform');
+            if (switchTab) switchTab(pendingInboundControlsTab || 'inbound-traffic-controls');
             pendingInboundControlsTab = '';
           });
           el('inbound-controls-status-btn')?.addEventListener('click', () => {
             el('inbound-controls-warning-modal')?.close();
             pendingInboundControlsTab = '';
             if (switchTab) switchTab('overview');
+          });
+          el('traffic-controls-open-config-link')?.addEventListener('click', (evt) => {
+            evt.preventDefault();
+            openConfigTab();
           });
           el('unsaved-save-btn')?.addEventListener('click', () => resolveUnsavedChanges('save'));
           el('unsaved-discard-btn')?.addEventListener('click', () => resolveUnsavedChanges('discard'));
