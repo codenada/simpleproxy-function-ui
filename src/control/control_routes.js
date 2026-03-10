@@ -10,7 +10,6 @@ function readControlEnv(env) {
 }
 const CONTROL_ADMIN_PATHS = {
   BROWSER_VERIFY: "/browser-verify",
-  ASSET_ADMIN_PAGE_JS: "/assets/admin-page.js",
   SWAGGER_PAGE: "/swagger",
   SWAGGER_SPEC: "/swagger/openapi.json",
   ACCESS_TOKEN: "/access-token",

@@ -16,9 +16,6 @@ async function dispatchAdminRoute({ normalizedPath, request, env, adminRoot, han
     }
     return handlers.handleAdminPage();
   }
-  if (normalizedPath === `${adminRoot}${CONTROL_ADMIN_PATHS.ASSET_ADMIN_PAGE_JS}` && request.method === "GET") {
-    return handlers.handleAdminPageScriptAsset();
-  }
   if (normalizedPath === `${adminRoot}${CONTROL_ADMIN_PATHS.SWAGGER_PAGE}` && request.method === "GET") {
     await auth.requireAdminAuth(request, env);
     return handlers.handleAdminSwaggerPage(request);

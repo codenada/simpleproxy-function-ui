@@ -2,11 +2,11 @@ import pageTemplate from "./ui/templates/page.html";
 import onboardingHeaderTemplate from "./ui/templates/onboarding_header.html";
 import adminLoginOptionsTemplate from "./ui/templates/admin_login_options.html";
 import adminPageTemplate from "./ui/templates/admin_page.html";
-import initAdminLoginJs from "./ui/templates/init_admin_login.js";
 import secretFieldTemplate from "./ui/templates/secret_field.html";
-import secretFieldJs from "./ui/templates/secret_field.js";
-import adminPageJs from "./ui/templates/admin_page.js";
-import sandboxTemplatesJs from "./ui/templates/sandbox_templates.js";
+import initAdminLoginScriptTemplate from "./ui/templates/init_admin_login_script.html";
+import secretFieldScriptTemplate from "./ui/templates/secret_field_script.html";
+import adminPageScriptTemplate from "./ui/templates/admin_page_script.html";
+import sandboxTemplatesTemplate from "./ui/templates/sandbox_templates.html";
 import { FAVICON_DATA_URL, escapeHtml, capitalize } from "../common/html.js";
 
 const templates = {
@@ -14,11 +14,11 @@ const templates = {
   onboarding_header: onboardingHeaderTemplate,
   admin_login_options: adminLoginOptionsTemplate,
   admin_page: adminPageTemplate,
-  init_admin_login_js: initAdminLoginJs,
+  init_admin_login_script: initAdminLoginScriptTemplate,
   secret_field: secretFieldTemplate,
-  secret_field_js: secretFieldJs,
-  admin_page_js: adminPageJs,
-  sandbox_templates_js: sandboxTemplatesJs,
+  secret_field_script: secretFieldScriptTemplate,
+  admin_page_script: adminPageScriptTemplate,
+  sandbox_templates: sandboxTemplatesTemplate,
 };
 
 function renderTemplate(name, vars = {}) {
@@ -55,10 +55,9 @@ export function renderAdminLoginOptions(docsUrl) {
 }
 
 export function renderInitAdminLoginScript(adminRoot) {
-  const js = renderTemplate("init_admin_login_js", {
+  return renderTemplate("init_admin_login_script", {
     admin_root: String(adminRoot || ""),
   });
-  return `<script>\n${js}\n</script>`;
 }
 
 export function renderSecretField(label, value, id, note = "", actionsEnabled = true) {
@@ -78,24 +77,21 @@ export function renderSecretField(label, value, id, note = "", actionsEnabled = 
 }
 
 export function renderSecretFieldScript() {
-  const js = templates.secret_field_js || "";
-  return `<script>\n${js}\n</script>`;
+  return templates.secret_field_script || "";
 }
 
 export function renderAdminPage(adminRoot = "/admin") {
+  const adminPageScriptHtml = renderTemplate("admin_page_script", {
+    admin_root: String(adminRoot || "/admin"),
+    sandbox_templates_js: templates.sandbox_templates || "",
+  });
   const bodyHtml = renderTemplate("admin_page", {
     favicon_data_url: FAVICON_DATA_URL,
     admin_root: String(adminRoot || "/admin"),
+    admin_page_script_html: adminPageScriptHtml,
   });
   return new Response(
     htmlPage("", bodyHtml),
     { headers: { "content-type": "text/html; charset=utf-8" } }
   );
-}
-
-export function renderAdminPageScript(adminRoot = "/admin") {
-  return renderTemplate("admin_page_js", {
-    admin_root: String(adminRoot || "/admin"),
-    sandbox_templates_js: templates.sandbox_templates_js || "",
-  });
 }
