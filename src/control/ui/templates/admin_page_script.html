@@ -829,11 +829,16 @@
           return prefix + text;
         }
         function parseConfigYamlText(yamlText) {
-          if (!window.YAML || typeof window.YAML.parse !== 'function') {
+          const source = String(yamlText || '');
+          const parser = window.YAML && typeof window.YAML.parse === 'function'
+            ? (text) => window.YAML.parse(text)
+            : (window.jsyaml && typeof window.jsyaml.load === 'function'
+              ? (text) => window.jsyaml.load(text)
+              : null);
+          if (!parser) {
             throw new Error('YAML parser unavailable in browser. Reload and try again.');
           }
-          const source = String(yamlText || '');
-          const parsed = window.YAML.parse(source);
+          const parsed = parser(source);
           if (parsed == null) return {};
           if (typeof parsed !== 'object' || Array.isArray(parsed)) {
             throw new Error('YAML root must be a mapping/object.');
