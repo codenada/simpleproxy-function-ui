@@ -135,8 +135,15 @@
         </div>
         <div id="tab-config" class="tab-panel" style="display:none;">
            <p><b>YAML Configuration</b></p>
+           <div id="config-edit-warning" style="margin:0 0 8px 0;padding:10px 12px;border:1px solid #fdba74;background:#fff7ed;color:#9a3412;border-radius:8px;line-height:1.5;">
+             Warning: Direct YAML edits can break runtime behavior. Unlock editing only if you understand the config schema.
+           </div>
+           <div style="margin:0 0 8px 0;">
+             <button type="button" id="config-unlock-btn" style="background:#fff;border:1px solid #f59e0b;color:#9a3412;padding:8px 12px;border-radius:8px;cursor:pointer;">Unlock editing</button>
+           </div>
            <textarea id="config-yaml" rows="14"
-             style="width:100%;max-width:740px;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;"></textarea>
+             disabled
+             style="width:100%;max-width:740px;padding:10px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc;color:#334155;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;"></textarea>
            <p id="config-validation-error" style="display:none;margin:6px 0 0;color:#b91c1c;font-size:14px;"></p>
            <div style="margin-top:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
              <a href="#" id="config-reload-link">Reload config</a>

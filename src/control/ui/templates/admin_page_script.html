@@ -19,6 +19,7 @@
         let fetchErrorHookInstalled = false;
         let lastApiErrorSignature = '';
         let lastApiErrorAtMs = 0;
+        let configYamlEditingUnlocked = false;
         const LIVE_LOG_MAX_CHARS = 200000;
         const LOGGING_TTL_PRESET_SECONDS = Object.freeze({
           "1h": 3600,
@@ -545,7 +546,8 @@
            const text = String(message || '').trim();
            if (field) {
              field.style.borderColor = text ? '#dc2626' : '#cbd5e1';
-             field.style.background = text ? '#fff5f5' : '#fff';
+             if (configYamlEditingUnlocked) field.style.background = text ? '#fff5f5' : '#fff';
+             else field.style.background = '#f8fafc';
            }
            if (msg) {
              msg.style.display = text ? 'block' : 'none';
@@ -553,6 +555,30 @@
              msg.textContent = text;
            }
          }
+        function setConfigYamlEditUnlocked(unlocked) {
+          const on = !!unlocked;
+          configYamlEditingUnlocked = on;
+          const field = el('config-yaml');
+          const btn = el('config-unlock-btn');
+          const warning = el('config-edit-warning');
+          if (field) {
+            field.disabled = !on;
+            field.style.color = on ? '#0f172a' : '#334155';
+            field.style.background = on ? '#fff' : '#f8fafc';
+          }
+          if (btn) {
+            btn.disabled = on;
+            btn.textContent = on ? 'Editing unlocked' : 'Unlock editing';
+            btn.style.opacity = on ? '0.7' : '1';
+            btn.style.cursor = on ? 'not-allowed' : 'pointer';
+          }
+          if (warning) {
+            warning.textContent = on
+              ? 'YAML editing is unlocked for this session. Review changes carefully before saving.'
+              : 'Warning: Direct YAML edits can break runtime behavior. Unlock editing only if you understand the config schema.';
+          }
+          setConfigSaveEnabled(on);
+        }
         function setConfigSaveEnabled(enabled) {
           const btn = el('footer-save-config');
           if (!btn) return;
@@ -1576,7 +1602,7 @@
             if (el('target-host')) el('target-host').value = parseTargetHostFromYaml(text);
             updateProxyHeader(el('proxy-name')?.value || '');
             setConfigValidationError('');
-            setConfigSaveEnabled(true);
+            setConfigSaveEnabled(configYamlEditingUnlocked);
             setOutput('config-output', 'Config reloaded from proxy.');
             clearDirty('config');
             clearDirty('overview');
@@ -1607,7 +1633,7 @@
           try {
             parseConfigYamlText(yaml);
             setConfigValidationError('');
-            setConfigSaveEnabled(true);
+            setConfigSaveEnabled(configYamlEditingUnlocked);
             if (showOutput) setOutput('config-output', 'YAML syntax is valid.');
             return true;
           } catch (e) {
@@ -1619,6 +1645,11 @@
           }
         }
         async function configSave() {
+          if (!configYamlEditingUnlocked) {
+            setConfigSaveEnabled(false);
+            setOutput('config-output', 'YAML editor is locked. Click "Unlock editing" before making direct YAML changes.');
+            return;
+          }
           const yaml = applyTargetHostToYaml(
             applyProxyNameToYaml(el('config-yaml')?.value || '', el('proxy-name')?.value || ''),
             el('target-host')?.value || ''
@@ -2559,6 +2590,7 @@
             const node = el(id);
             if (node) node.style.display = 'none';
           });
+          setConfigYamlEditUnlocked(false);
           if (el('sandbox-request-form')) {
             setHtml('sandbox-request-form', renderRequestForm('sandbox'));
             bindRequestFormToggles('sandbox');
@@ -2739,6 +2771,10 @@
              evt.preventDefault();
              configLoad();
            });
+          el('config-unlock-btn')?.addEventListener('click', () => {
+            setConfigYamlEditUnlocked(true);
+            setOutput('config-output', 'YAML editor unlocked. Changes are not saved until you click Save.');
+          });
           el('footer-save-config')?.addEventListener('click', configSave);
            el('outbound-auth-enabled')?.addEventListener('change', () => {
              setOutboundAuthEnabled(!!el('outbound-auth-enabled')?.checked);
