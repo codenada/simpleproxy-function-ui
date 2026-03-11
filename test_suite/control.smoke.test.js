@@ -233,7 +233,8 @@ test("Control admin page requires auth and loads from tokenized admin URL", SERI
     method: "GET",
     path: "/admin",
   });
-  assert.equal(denied.status, 404);
+  assert.equal(denied.status, 302);
+  assert.equal(denied.headers.get("location"), "/");
 
   const tokenResponse = await callSpecificWorker(controlWorker, env, {
     method: "POST",

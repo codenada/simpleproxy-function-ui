@@ -25,7 +25,7 @@
          <h1 style="margin:0 0 10px 0;font-size:30px;">Admin Console</h1>
          <div style="display:flex;gap:14px;align-items:flex-start;margin:14px 0;">
          <div id="admin-nav" style="display:flex;flex-direction:column;gap:8px;min-width:220px;">
-           <button type="button" class="tab-btn" data-tab="overview">Status</button>
+           <button type="button" class="tab-btn" data-tab="overview">General</button>
            <div style="margin-top:6px;font-size:12px;color:#64748b;font-weight:700;text-transform:uppercase;">Observability &amp; Testing</div>
            <button type="button" class="tab-btn tab-child" data-tab="debug">Logging</button>
            <button type="button" class="tab-btn tab-child" data-tab="live-log">Live Log</button>
@@ -43,11 +43,14 @@
            <a href="#" id="logout-link" style="margin-top:14px;font-size:14px;color:#0f172a;text-decoration:underline;">Log out</a>
          </div>
          <div style="flex:1;min-width:0;">
-         <div id="tab-overview" class="tab-panel">
-           <p><b>Status</b></p>
-           <div id="overview-output" style="padding:12px;border:1px solid #ddd;border-radius:8px;line-height:1.6;">Click "Refresh status".</div>
-           <button type="button" id="overview-refresh-btn">Refresh status</button>
-         </div>
+        <div id="tab-overview" class="tab-panel">
+          <p><b>General</b></p>
+          <label for="proxy-name" style="display:block;margin:8px 0 4px;">Proxy name</label>
+          <input id="proxy-name" type="text" placeholder="friendly name"
+            style="width:100%;max-width:520px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;margin-bottom:10px;" />
+          <div id="overview-output" style="padding:12px;border:1px solid #ddd;border-radius:8px;line-height:1.6;">Click "Refresh status".</div>
+          <button type="button" id="overview-refresh-btn">Refresh status</button>
+        </div>
         <div id="tab-debug" class="tab-panel" style="display:none;">
            <p><b>Logging controls</b></p>
            <div id="logging-status" style="padding:12px;border:1px solid #ddd;border-radius:8px;line-height:1.6;margin:10px 0;">Loading logging status...</div>
@@ -88,19 +91,12 @@
         </div>
         <div id="tab-config" class="tab-panel" style="display:none;">
            <p><b>YAML config</b></p>
-           <label for="proxy-name" style="display:block;margin:8px 0 4px;">Proxy name</label>
-           <input id="proxy-name" type="text" placeholder="friendly name"
-             style="width:100%;max-width:520px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;margin-bottom:8px;" />
            <textarea id="config-yaml" rows="14"
              style="width:100%;max-width:740px;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;"></textarea>
            <p id="config-validation-error" style="display:none;margin:6px 0 0;color:#b91c1c;font-size:14px;"></p>
            <div style="margin-top:8px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
              <a href="#" id="config-reload-link">Reload config</a>
-             <a href="#" id="config-test-rule-link">Test rule</a>
            </div>
-           <p style="margin:10px 0 6px;"><b>Test rule payload (JSON)</b></p>
-           <textarea id="config-test-rule-input" rows="8"
-             style="width:100%;max-width:740px;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;"></textarea>
           <div style="margin-top:14px;border-top:1px solid #e2e8f0;padding-top:10px;display:flex;justify-content:flex-end;">
             <button type="button" id="footer-save-config" style="background:#0f172a;color:#fff;border:1px solid #0f172a;padding:8px 14px;border-radius:8px;">Save</button>
           </div>
@@ -313,55 +309,21 @@
           <div style="padding:10px 12px;border:1px solid #fecaca;background:#fff1f2;color:#991b1b;border-radius:8px;line-height:1.6;">
             Warning: Prefer external network controls; use in-app controls only when edge/network policy is unavailable.
           </div>
-          <label style="display:flex;gap:8px;align-items:center;margin:12px 0 10px;">
-            <input id="inbound-network-controls-enabled" type="checkbox" />
-            <span>Enable inbound network controls</span>
-          </label>
-          <div id="inbound-network-controls-fields" style="padding:10px;border:1px solid #e2e8f0;border-radius:8px;">
-            <p style="margin:0 0 8px 0;"><b>IP Filter</b></p>
-            <label style="display:flex;gap:8px;align-items:center;margin:8px 0;">
-              <input id="inbound-network-ip-filter-enabled" type="checkbox" data-network-control-field="1" />
-              <span>Enable IP filter</span>
-            </label>
-            <label for="inbound-network-allowed-cidrs" style="display:block;margin:8px 0 4px;">Allowed CIDRs (comma or newline separated)</label>
-            <textarea id="inbound-network-allowed-cidrs" rows="4" data-network-control-field="1"
-              style="width:100%;max-width:740px;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;"></textarea>
-            <p style="margin:12px 0 8px 0;"><b>Request Rate Limit</b></p>
-            <label style="display:flex;gap:8px;align-items:center;margin:8px 0;">
-              <input id="inbound-network-rpm-enabled" type="checkbox" data-network-control-field="1" />
-              <span>Enable request rate limit</span>
-            </label>
-            <label for="inbound-network-rpm-limit" style="display:block;margin:8px 0 4px;">Requests per minute</label>
-            <input id="inbound-network-rpm-limit" type="number" min="1" step="1" data-network-control-field="1"
-              style="width:100%;max-width:220px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />
+          <div style="margin-top:12px;padding:10px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;line-height:1.8;">
+            <p style="margin:0 0 8px 0;"><b>Runtime Controls</b></p>
+            <div><b>Inbound IP Filter:</b> <span id="inbound-network-ip-filter-enabled-text">Disabled</span></div>
+            <div><b>Inbound Allowed CIDRs:</b> <span id="inbound-network-allowed-cidrs-text">n/a</span></div>
+            <div><b>Inbound Request Rate Limit:</b> <span id="inbound-network-rpm-enabled-text">Disabled</span></div>
+            <div><b>Inbound Requests Per Min:</b> <span id="inbound-network-rpm-limit-text">n/a</span></div>
           </div>
-          <div style="margin-top:12px;padding:10px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;">
+          <div style="margin-top:12px;padding:10px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;line-height:1.8;">
             <p style="margin:0 0 8px 0;"><b>Admin Controls (Read Only)</b></p>
-            <label style="display:flex;gap:8px;align-items:center;margin:6px 0;">
-              <input id="admin-control-login-enabled" type="checkbox" disabled />
-              <span>Login page RPM limit enabled</span>
-            </label>
-            <label for="admin-control-login-rpm" style="display:block;margin:6px 0 4px;">Login page RPM limit</label>
-            <input id="admin-control-login-rpm" type="text" readonly
-              style="width:100%;max-width:220px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;" />
-            <label style="display:flex;gap:8px;align-items:center;margin:10px 0 6px;">
-              <input id="admin-control-token-enabled" type="checkbox" disabled />
-              <span>Admin token endpoint RPM limit enabled</span>
-            </label>
-            <label for="admin-control-token-rpm" style="display:block;margin:6px 0 4px;">Admin token endpoint RPM limit</label>
-            <input id="admin-control-token-rpm" type="text" readonly
-              style="width:100%;max-width:220px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;" />
-            <label style="display:flex;gap:8px;align-items:center;margin:10px 0 6px;">
-              <input id="admin-control-ip-enabled" type="checkbox" disabled />
-              <span>Admin IP filter enabled</span>
-            </label>
-            <label for="admin-control-ip-cidrs" style="display:block;margin:6px 0 4px;">Admin allowed CIDRs</label>
-            <textarea id="admin-control-ip-cidrs" rows="3" readonly
-              style="width:100%;max-width:740px;padding:10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;"></textarea>
-          </div>
-          <pre id="network-controls-output" style="margin-top:10px;padding:12px;border:1px solid #ddd;border-radius:8px;white-space:pre-wrap;word-break:break-word;">Network controls status appears here.</pre>
-          <div style="margin-top:14px;border-top:1px solid #e2e8f0;padding-top:10px;display:flex;justify-content:flex-end;">
-            <button type="button" id="footer-save-inbound-network-controls" style="background:#0f172a;color:#fff;border:1px solid #0f172a;padding:8px 14px;border-radius:8px;">Save</button>
+            <div><b>Login Page Rate Limit:</b> <span id="admin-control-login-enabled-text">Disabled</span></div>
+            <div><b>Login Page Requests Per Min:</b> <span id="admin-control-login-rpm-text">n/a</span></div>
+            <div><b>Admin Token Endpoint Rate Limit:</b> <span id="admin-control-token-enabled-text">Disabled</span></div>
+            <div><b>Admin Token Requests Per Min:</b> <span id="admin-control-token-rpm-text">n/a</span></div>
+            <div><b>Admin IP Filter:</b> <span id="admin-control-ip-enabled-text">Disabled</span></div>
+            <div><b>Admin Allowed CIDRs:</b> <span id="admin-control-ip-cidrs-text">n/a</span></div>
           </div>
         </div>
         <div id="tab-inbound-transform" class="tab-panel" style="display:none;">
@@ -436,15 +398,6 @@
          <div style="display:flex;gap:8px;justify-content:flex-end;">
            <button type="button" id="delete-header-cancel-btn">Cancel</button>
            <button type="button" id="delete-header-confirm-btn">Delete</button>
-         </div>
-       </dialog>
-       <dialog id="inbound-controls-warning-modal" style="max-width:480px;border:1px solid #e2e8f0;border-radius:10px;padding:16px;">
-         <p style="margin-top:0;"><b>Before you continue</b></p>
-         <p style="margin:8px 0 12px 0;">Use external network controls whenever possible, and only use in-app controls when edge/network policy is not available.</p>
-         <p style="margin:8px 0 12px 0;">Are you sure you want to continue?</p>
-         <div style="display:flex;gap:8px;justify-content:flex-end;">
-           <button type="button" id="inbound-controls-continue-btn">Continue</button>
-           <button type="button" id="inbound-controls-cancel-btn">Cancel</button>
          </div>
        </dialog>
        <dialog id="unsaved-changes-modal" style="max-width:520px;border:1px solid #e2e8f0;border-radius:10px;padding:16px;">

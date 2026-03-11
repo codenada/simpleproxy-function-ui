@@ -1,4 +1,3 @@
-import { ERROR_CODES } from "../../common/error_codes.js";
 import { CONTROL_ADMIN_PATHS } from "../control_routes.js";
 
 async function dispatchAdminRoute({ normalizedPath, request, env, adminRoot, handlers, auth }) {
@@ -9,9 +8,12 @@ async function dispatchAdminRoute({ normalizedPath, request, env, adminRoot, han
     try {
       await auth.requireAdminAuth(request, env);
     } catch {
-      return new Response(JSON.stringify({ error: { code: ERROR_CODES.NOT_FOUND, message: "Route not found" } }), {
-        status: 404,
-        headers: { "content-type": "application/json; charset=utf-8" },
+      return new Response(null, {
+        status: 302,
+        headers: {
+          location: "/",
+          "cache-control": "no-store",
+        },
       });
     }
     return handlers.handleAdminPage();

@@ -11,8 +11,6 @@
         let switchTab = null;
         const dirtyTabs = new Set();
         let unsavedModalResolve = null;
-        let inboundNetworkControlsGateResolve = null;
-        let suppressInboundNetworkControlsGate = false;
         let liveLogStreamAbortController = null;
         let liveLogReconnectTimer = null;
         let liveLogShouldReconnect = false;
@@ -478,42 +476,8 @@
           unsavedModalResolve = null;
           if (typeof resolve === 'function') resolve(action);
         }
-        function promptInboundNetworkControlsGate() {
-          const modal = el('inbound-controls-warning-modal');
-          if (!modal || typeof modal.showModal !== 'function') {
-            return Promise.resolve(window.confirm('Are you sure you want to continue?') ? 'continue' : 'cancel');
-          }
-          return new Promise((resolve) => {
-            inboundNetworkControlsGateResolve = resolve;
-            if (!modal.open) modal.showModal();
-          });
-        }
-        function resolveInboundNetworkControlsGate(action) {
-          const modal = el('inbound-controls-warning-modal');
-          if (modal?.open) modal.close();
-          const resolve = inboundNetworkControlsGateResolve;
-          inboundNetworkControlsGateResolve = null;
-          if (typeof resolve === 'function') resolve(action);
-        }
-        function setInboundNetworkControlsFieldsEnabled(enabled) {
-          const on = !!enabled;
-          const wrap = el('inbound-network-controls-fields');
-          if (wrap) {
-            wrap.style.opacity = on ? '1' : '0.55';
-          }
-          document.querySelectorAll('[data-network-control-field="1"]').forEach((node) => {
-            node.disabled = !on;
-          });
-        }
-        function parseCidrsInput(raw) {
-          return Array.from(
-            new Set(
-              String(raw || '')
-                .split(/[\n,]/)
-                .map((v) => String(v || '').trim())
-                .filter(Boolean)
-            )
-          );
+        function onOff(enabled) {
+          return enabled ? 'Enabled' : 'Disabled';
         }
         async function networkControlsLoad() {
           try {
@@ -524,87 +488,33 @@
             const controls = config?.traffic_controls || {};
             const ipFilter = controls?.ip_filter || {};
             const requestRate = controls?.request_rate_limit || {};
-            const masterEnabled = !!(ipFilter.enabled || requestRate.enabled);
             const adminControls = version?.data?.admin_controls || {};
-            suppressInboundNetworkControlsGate = true;
-            if (el('inbound-network-controls-enabled')) el('inbound-network-controls-enabled').checked = masterEnabled;
-            if (el('inbound-network-ip-filter-enabled')) el('inbound-network-ip-filter-enabled').checked = !!ipFilter.enabled;
-            if (el('inbound-network-rpm-enabled')) el('inbound-network-rpm-enabled').checked = !!requestRate.enabled;
-            if (el('inbound-network-rpm-limit')) {
-              el('inbound-network-rpm-limit').value = String(Number(requestRate.rpm_rate_limit || 120));
+            const runtimeCidrs = Array.isArray(ipFilter.allowed_cidrs) ? ipFilter.allowed_cidrs : [];
+            const adminCidrs = Array.isArray(adminControls?.ip_filter?.allowed_cidrs)
+              ? adminControls.ip_filter.allowed_cidrs
+              : [];
+            if (el('inbound-network-ip-filter-enabled-text')) el('inbound-network-ip-filter-enabled-text').textContent = onOff(!!ipFilter.enabled);
+            if (el('inbound-network-allowed-cidrs-text')) el('inbound-network-allowed-cidrs-text').textContent = runtimeCidrs.length ? runtimeCidrs.join(', ') : 'n/a';
+            if (el('inbound-network-rpm-enabled-text')) el('inbound-network-rpm-enabled-text').textContent = onOff(!!requestRate.enabled);
+            if (el('inbound-network-rpm-limit-text')) {
+              const rpm = Number(requestRate.rpm_rate_limit || 0);
+              el('inbound-network-rpm-limit-text').textContent = Number.isFinite(rpm) && rpm > 0 ? String(rpm) : 'n/a';
             }
-            if (el('inbound-network-allowed-cidrs')) {
-              const cidrs = Array.isArray(ipFilter.allowed_cidrs) ? ipFilter.allowed_cidrs : [];
-              el('inbound-network-allowed-cidrs').value = cidrs.join('\n');
+            if (el('admin-control-login-enabled-text')) el('admin-control-login-enabled-text').textContent = onOff(!!adminControls?.login_page?.enabled);
+            if (el('admin-control-login-rpm-text')) {
+              const rpm = Number(adminControls?.login_page?.rpm_rate_limit || 0);
+              el('admin-control-login-rpm-text').textContent = Number.isFinite(rpm) && rpm > 0 ? String(rpm) : 'n/a';
             }
-            if (el('admin-control-login-enabled')) el('admin-control-login-enabled').checked = !!adminControls?.login_page?.enabled;
-            if (el('admin-control-login-rpm')) el('admin-control-login-rpm').value = String(adminControls?.login_page?.rpm_rate_limit ?? '');
-            if (el('admin-control-token-enabled')) el('admin-control-token-enabled').checked = !!adminControls?.get_admin_token_endpoint?.enabled;
-            if (el('admin-control-token-rpm')) el('admin-control-token-rpm').value = String(adminControls?.get_admin_token_endpoint?.rpm_rate_limit ?? '');
-            if (el('admin-control-ip-enabled')) el('admin-control-ip-enabled').checked = !!adminControls?.ip_filter?.enabled;
-            if (el('admin-control-ip-cidrs')) {
-              const adminCidrs = Array.isArray(adminControls?.ip_filter?.allowed_cidrs)
-                ? adminControls.ip_filter.allowed_cidrs
-                : [];
-              el('admin-control-ip-cidrs').value = adminCidrs.join('\n');
+            if (el('admin-control-token-enabled-text')) el('admin-control-token-enabled-text').textContent = onOff(!!adminControls?.get_admin_token_endpoint?.enabled);
+            if (el('admin-control-token-rpm-text')) {
+              const rpm = Number(adminControls?.get_admin_token_endpoint?.rpm_rate_limit || 0);
+              el('admin-control-token-rpm-text').textContent = Number.isFinite(rpm) && rpm > 0 ? String(rpm) : 'n/a';
             }
-            setInboundNetworkControlsFieldsEnabled(masterEnabled);
-            setOutput('network-controls-output', 'Network controls reloaded from config.');
+            if (el('admin-control-ip-enabled-text')) el('admin-control-ip-enabled-text').textContent = onOff(!!adminControls?.ip_filter?.enabled);
+            if (el('admin-control-ip-cidrs-text')) el('admin-control-ip-cidrs-text').textContent = adminCidrs.length ? adminCidrs.join(', ') : 'n/a';
             clearDirty('inbound-traffic-controls');
           } catch (e) {
-            setOutput('network-controls-output', String(e.message || e));
-          } finally {
-            suppressInboundNetworkControlsGate = false;
-          }
-        }
-        async function networkControlsSave() {
-          try {
-            const config = await fetchConfigJsonFromYaml();
-            if (!config.traffic_controls) config.traffic_controls = {};
-            if (!config.traffic_controls.ip_filter) {
-              config.traffic_controls.ip_filter = { enabled: false, allowed_cidrs: ['0.0.0.0/0', '::/0'] };
-            }
-            if (!config.traffic_controls.request_rate_limit) {
-              config.traffic_controls.request_rate_limit = { enabled: false, rpm_rate_limit: 120 };
-            }
-            const masterEnabled = !!el('inbound-network-controls-enabled')?.checked;
-            const ipEnabled = masterEnabled && !!el('inbound-network-ip-filter-enabled')?.checked;
-            const rpmEnabled = masterEnabled && !!el('inbound-network-rpm-enabled')?.checked;
-            const rpm = Number(el('inbound-network-rpm-limit')?.value || 120);
-            if (!Number.isInteger(rpm) || rpm < 1) {
-              throw new Error('Requests per minute must be an integer >= 1.');
-            }
-            const cidrs = parseCidrsInput(el('inbound-network-allowed-cidrs')?.value || '');
-            if (ipEnabled && cidrs.length === 0) {
-              throw new Error('At least one CIDR is required when IP filter is enabled.');
-            }
-            config.traffic_controls.ip_filter.enabled = ipEnabled;
-            config.traffic_controls.ip_filter.allowed_cidrs = cidrs.length
-              ? cidrs
-              : (Array.isArray(config.traffic_controls.ip_filter.allowed_cidrs)
-                ? config.traffic_controls.ip_filter.allowed_cidrs
-                : ['0.0.0.0/0', '::/0']);
-            config.traffic_controls.request_rate_limit.enabled = rpmEnabled;
-            config.traffic_controls.request_rate_limit.rpm_rate_limit = rpm;
-
-            const cfgRes = await fetch(ADMIN_ROOT + '/config', {
-              method: 'PUT',
-              headers: { 'Authorization': 'Bearer ' + currentKey, 'Content-Type': 'application/json' },
-              body: JSON.stringify(config),
-            });
-            if (cfgRes.status === 401) {
-              handleUnauthorized();
-              throw new Error('Unauthorized (401)');
-            }
-            const txt = await cfgRes.text();
-            if (!cfgRes.ok) {
-              throw new Error(txt || 'Failed to save network controls');
-            }
-            setOutput('network-controls-output', 'Network controls saved.');
-            clearDirty('inbound-traffic-controls');
-            await networkControlsLoad();
-          } catch (e) {
-            setOutput('network-controls-output', String(e.message || e));
+            showWarning('Unable to load network controls: ' + String(e.message || e));
           }
         }
         async function saveTabChanges(tabName) {
@@ -613,7 +523,6 @@
           if (tabName === 'debug') await loggingSave();
           else if (tabName === 'config') await configSave();
           else if (tabName === 'outbound-auth') await keyRotationSave();
-          else if (tabName === 'inbound-traffic-controls') await networkControlsSave();
           else if (tabName === 'inbound-auth') await inboundAuthSave();
           else if (tabName === 'admin-auth') await adminAuthSave();
           else if (tabName === 'outbound-transform') await saveTransformConfig('outbound');
@@ -1531,22 +1440,6 @@
              setOutput('config-output', 'Not saved\\n\\n' + String(e.message || e));
            }
          }
-         async function configTestRule() {
-           const raw = el('config-test-rule-input')?.value || '';
-           let parsed;
-           try {
-             parsed = raw ? JSON.parse(raw) : {};
-           } catch {
-             setOutput('config-output', 'Test rule input must be valid JSON.');
-             return;
-           }
-           try {
-             const result = await apiCall(ADMIN_ROOT + '/config/test-rule', 'POST', parsed);
-             setOutput('config-output', formatConfigSummary('Rule test result', result));
-           } catch (e) {
-             setOutput('config-output', String(e.message || e));
-           }
-         }
          function normalizeNullableIntegerInput(raw) {
            const v = String(raw == null ? '' : raw).trim();
            if (!v || v.toLowerCase() === 'null') return null;
@@ -2440,10 +2333,6 @@
              evt.preventDefault();
              configLoad();
            });
-           el('config-test-rule-link')?.addEventListener('click', (evt) => {
-             evt.preventDefault();
-             configTestRule();
-           });
           el('footer-save-config')?.addEventListener('click', configSave);
           el('footer-save-outbound-auth')?.addEventListener('click', keyRotationSave);
            el('outbound-auth-enabled')?.addEventListener('change', () => {
@@ -2564,33 +2453,6 @@
              el('delete-header-modal')?.close();
            });
            el('delete-header-confirm-btn')?.addEventListener('click', headersDeleteConfirmed);
-          el('inbound-controls-continue-btn')?.addEventListener('click', () => {
-            resolveInboundNetworkControlsGate('continue');
-          });
-          el('inbound-controls-cancel-btn')?.addEventListener('click', () => {
-            resolveInboundNetworkControlsGate('cancel');
-          });
-          el('inbound-controls-warning-modal')?.addEventListener('cancel', (evt) => {
-            evt.preventDefault();
-            resolveInboundNetworkControlsGate('cancel');
-          });
-          el('inbound-network-controls-enabled')?.addEventListener('change', async (evt) => {
-            if (suppressInboundNetworkControlsGate) return;
-            const checked = !!evt.target?.checked;
-            if (!checked) {
-              setInboundNetworkControlsFieldsEnabled(false);
-              return;
-            }
-            const decision = await promptInboundNetworkControlsGate();
-            if (decision === 'continue') {
-              if (el('inbound-network-controls-enabled')) el('inbound-network-controls-enabled').checked = true;
-              setInboundNetworkControlsFieldsEnabled(true);
-              return;
-            }
-            if (el('inbound-network-controls-enabled')) el('inbound-network-controls-enabled').checked = false;
-            setInboundNetworkControlsFieldsEnabled(false);
-          });
-          el('footer-save-inbound-network-controls')?.addEventListener('click', networkControlsSave);
           el('unsaved-save-btn')?.addEventListener('click', () => resolveUnsavedChanges('save'));
           el('unsaved-discard-btn')?.addEventListener('click', () => resolveUnsavedChanges('discard'));
           el('unsaved-cancel-btn')?.addEventListener('click', () => resolveUnsavedChanges('cancel'));
