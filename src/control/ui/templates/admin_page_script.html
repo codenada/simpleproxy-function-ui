@@ -728,10 +728,12 @@
         async function saveTabChanges(tabName) {
           const beforeDirty = dirtyTabs.has(tabName);
           if (!beforeDirty) return true;
-          if (tabName === 'overview') await configSave();
+          if (tabName === 'overview') {
+            await configSave();
+            await keyRotationSave('overview');
+          }
           else if (tabName === 'debug') await loggingSave();
           else if (tabName === 'config') await configSave();
-          else if (tabName === 'outbound-auth') await keyRotationSave();
           else if (tabName === 'inbound-auth') await inboundAuthSave();
           else if (tabName === 'inbound-traffic-controls') await networkControlsSave();
           else if (tabName === 'outbound-transform') await saveTransformConfig('outbound');
@@ -742,6 +744,7 @@
           if (!tabName || !dirtyTabs.has(tabName)) return;
           if (tabName === 'overview') {
             await configLoad();
+            await keyRotationLoad();
             clearDirty('overview');
             return;
           }
@@ -753,11 +756,6 @@
           }
           if (tabName === 'config') {
             await configLoad();
-            clearDirty(tabName);
-            return;
-          }
-          if (tabName === 'outbound-auth') {
-            await keyRotationLoad();
             clearDirty(tabName);
             return;
           }
@@ -1327,7 +1325,7 @@
               debugLoadTrace();
               loadLoggingStatus();
             }
-            if (name === 'outbound-auth') {
+            if (name === 'overview') {
               keyRotationLoad();
             }
             if (name === 'outbound-transform') {
@@ -1712,13 +1710,12 @@
             if (el('kr-proxy-expiry')) el('kr-proxy-expiry').value = toProxyExpirySelectValue(d.proxy_expiry_seconds);
             if (el('kr-issuer-expiry')) el('kr-issuer-expiry').value = d.issuer_expiry_seconds == null ? '' : String(d.issuer_expiry_seconds);
             if (el('kr-output')) el('kr-output').textContent = '';
-            clearDirty('outbound-auth');
             await loadJwtConfig();
           } catch (e) {
             setOutput('kr-output', String(e.message || e));
           }
         }
-        async function keyRotationSave() {
+        async function keyRotationSave(dirtyTabToClear) {
           try {
             const outboundAuthEnabled = !!el('outbound-auth-enabled')?.checked;
              const req = readRequestForm('kr');
@@ -1750,7 +1747,7 @@
               });
             } catch {}
             setOutput('kr-output', out);
-            clearDirty('outbound-auth');
+            if (dirtyTabToClear) clearDirty(dirtyTabToClear);
           } catch (e) {
             setOutput('kr-output', String(e.message || e));
           }
@@ -2547,7 +2544,6 @@
           [
             'footer-save-logging',
             'footer-save-config',
-            'footer-save-outbound-auth',
             'footer-save-outbound-transform',
             'footer-save-inbound-transform',
             'footer-save-inbound-auth',
@@ -2733,7 +2729,6 @@
              configLoad();
            });
           el('footer-save-config')?.addEventListener('click', configSave);
-          el('footer-save-outbound-auth')?.addEventListener('click', keyRotationSave);
            el('outbound-auth-enabled')?.addEventListener('change', () => {
              setOutboundAuthEnabled(!!el('outbound-auth-enabled')?.checked);
            });
