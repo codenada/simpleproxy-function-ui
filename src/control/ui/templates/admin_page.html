@@ -42,6 +42,8 @@
          <div style="flex:1;min-width:0;">
         <div id="tab-overview" class="tab-panel">
           <p><b>General</b></p>
+          <div id="overview-output" style="padding:12px;border:1px solid #ddd;border-radius:8px;line-height:1.6;">Click "Refresh status".</div>
+          <button type="button" id="overview-refresh-btn" style="margin-top:8px;">Refresh status</button>
           <label for="proxy-name" style="display:block;margin:8px 0 4px;">Proxy name</label>
           <input id="proxy-name" type="text" placeholder="friendly name"
             style="width:100%;max-width:520px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;margin-bottom:10px;" />
@@ -90,8 +92,6 @@
           <label for="kr-retry-on-401" style="display:block;margin:10px 0 4px;">Retry Once On 401</label>
           <input id="kr-retry-on-401" type="checkbox" />
           </div>
-          <div id="overview-output" style="padding:12px;border:1px solid #ddd;border-radius:8px;line-height:1.6;">Click "Refresh status".</div>
-          <button type="button" id="overview-refresh-btn">Refresh status</button>
         </div>
         <div id="tab-debug" class="tab-panel" style="display:none;">
            <p><b>Logging controls</b></p>
