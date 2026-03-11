@@ -87,19 +87,6 @@ function createSwaggerApi({ htmlPage, reservedRoot, adminRoot }) {
             responses: { "200": { description: "Updated config" } },
           },
         },
-        [`${adminRoot}/config/validate`]: {
-          post: {
-            summary: "Validate config (YAML or JSON)",
-            security: [{ AdminKeyHeader: [] }, { AdminBearer: [] }],
-            requestBody: {
-              content: {
-                "text/yaml": { schema: { type: "string" } },
-                "application/json": { schema: { type: "object", additionalProperties: true } },
-              },
-            },
-            responses: { "200": { description: "Validation result" } },
-          },
-        },
         [`${adminRoot}/config/test-rule`]: {
           post: { summary: "Test transform rule matcher", security: [{ AdminKeyHeader: [] }, { AdminBearer: [] }], requestBody: jsonBody, responses: { "200": { description: "Rule test output" } } },
         },

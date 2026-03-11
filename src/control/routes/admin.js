@@ -60,10 +60,6 @@ async function dispatchAdminRoute({ normalizedPath, request, env, adminRoot, han
     await auth.requireAdminAuth(request, env);
     return handlers.handleConfigPut(request, env);
   }
-  if (normalizedPath === `${adminRoot}${CONTROL_ADMIN_PATHS.CONFIG_VALIDATE}` && request.method === "POST") {
-    await auth.requireAdminAuth(request, env);
-    return handlers.handleConfigValidate(request, env);
-  }
   if (normalizedPath === `${adminRoot}${CONTROL_ADMIN_PATHS.CONFIG_TEST_RULE}` && request.method === "POST") {
     await auth.requireAdminAuth(request, env);
     return handlers.handleConfigTestRule(request, env);

@@ -21,6 +21,9 @@ const DEFAULT_ADMIN_CONFIG = {
       enabled: false,
       allowed_cidrs: ["0.0.0.0/0", "::/0"],
     },
+    admin_activity_log: {
+      max_entries: 1000,
+    },
   },
 };
 
@@ -57,6 +60,12 @@ function normalizeAdminConfig(raw) {
       ip_filter: {
         ...DEFAULT_ADMIN_CONFIG.admin.ip_filter,
         ...(raw?.admin?.ip_filter && typeof raw.admin.ip_filter === "object" ? raw.admin.ip_filter : {}),
+      },
+      admin_activity_log: {
+        ...DEFAULT_ADMIN_CONFIG.admin.admin_activity_log,
+        ...(raw?.admin?.admin_activity_log && typeof raw.admin.admin_activity_log === "object"
+          ? raw.admin.admin_activity_log
+          : {}),
       },
     },
   };
@@ -101,6 +110,12 @@ function normalizeAdminConfig(raw) {
     : [];
   merged.admin.ip_filter.allowed_cidrs =
     allowedCidrs.length > 0 ? Array.from(new Set(allowedCidrs)) : [...DEFAULT_ADMIN_CONFIG.admin.ip_filter.allowed_cidrs];
+  merged.admin.admin_activity_log.max_entries = toPositiveInt(
+    merged.admin.admin_activity_log.max_entries,
+    DEFAULT_ADMIN_CONFIG.admin.admin_activity_log.max_entries,
+    10,
+    10000
+  );
   return merged;
 }
 
@@ -166,6 +181,10 @@ function parseSimpleAdminYaml(text) {
   out.get_admin_token_endpoint = tokenEndpoint;
   out.browser_challenge = browser;
   out.ip_filter = ipFilter;
+  const adminActivityLog = {};
+  const auditEntriesMatch = src.match(/^\s*admin_activity_log:\s*$[\s\S]*?^\s*max_entries:\s*([0-9]+)\s*$/m);
+  if (auditEntriesMatch?.[1]) adminActivityLog.max_entries = Number(auditEntriesMatch[1]);
+  out.admin_activity_log = adminActivityLog;
   return { admin: out };
 }
 

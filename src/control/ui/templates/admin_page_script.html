@@ -183,6 +183,7 @@
                 + '<option value="none">none</option>'
                 + '<option value="static">static</option>'
                 + '<option value="key_rotation">key_rotation</option>'
+                + '<option value="oauth_client_credentials">oauth_client_credentials</option>'
                 + '</select>'
                 + '<div id="' + prefix + '-auth-static-wrap" style="display:none;">'
                 + '<label for="' + prefix + '-auth-header-name" style="display:block;margin:10px 0 4px;">Auth header name</label>'
@@ -210,7 +211,10 @@
           const mode = String(type || 'none');
           if (el(prefix + '-auth-type')) el(prefix + '-auth-type').value = mode;
           if (el(prefix + '-auth-static-wrap')) el(prefix + '-auth-static-wrap').style.display = mode === 'static' ? 'block' : 'none';
-          if (el(prefix + '-auth-key-rotation-wrap')) el(prefix + '-auth-key-rotation-wrap').style.display = mode === 'key_rotation' ? 'block' : 'none';
+          if (el(prefix + '-auth-key-rotation-wrap')) {
+            el(prefix + '-auth-key-rotation-wrap').style.display =
+              (mode === 'key_rotation' || mode === 'oauth_client_credentials') ? 'block' : 'none';
+          }
         }
         function bindRequestFormToggles(prefix) {
           const headersToggle = el(prefix + '-headers-toggle');
@@ -384,7 +388,7 @@
                 secret_ref: secretRef || null,
               },
             };
-          } else if (authType === 'key_rotation') {
+          } else if (authType === 'key_rotation' || authType === 'oauth_client_credentials') {
             const mappedProfile = fixedKeyRotationProfileFor(prefix);
             req.authorization = {
               type: 'key_rotation',
@@ -414,7 +418,10 @@
             req.authorization && typeof req.authorization === 'object'
               ? req.authorization
               : (req.http_authorization && typeof req.http_authorization === 'object' ? req.http_authorization : null);
-          const authType = auth?.type === 'static' || auth?.type === 'key_rotation' ? auth.type : 'none';
+          let authType = auth?.type === 'static' || auth?.type === 'key_rotation' ? auth.type : 'none';
+          if (authType === 'key_rotation' && prefix === 'kr' && el('kr-strategy')?.value === 'oauth_client_credentials') {
+            authType = 'oauth_client_credentials';
+          }
           setRequestAuthMode(prefix, authType);
           if (el(prefix + '-auth-header-name')) {
             const staticHeaders = auth?.static?.headers && typeof auth.static.headers === 'object' ? auth.static.headers : {};
@@ -790,6 +797,17 @@
           }
           return raw;
         }
+        function parseTargetHostFromYaml(yamlText) {
+          const text = String(yamlText || '');
+          const match = text.match(/^targetHost:\s*(.+)$/m);
+          if (!match) return '';
+          const raw = String(match[1] || '').trim();
+          if (!raw || raw.toLowerCase() === 'null') return '';
+          if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) {
+            return raw.slice(1, -1);
+          }
+          return raw;
+        }
         function applyProxyNameToYaml(yamlText, proxyName) {
           const name = String(proxyName || '').trim();
           const value = name ? '"' + name.replace(/"/g, '\\"') + '"' : 'null';
@@ -800,24 +818,31 @@
           const prefix = text.trim().length ? 'proxyName: ' + value + '\n' : 'proxyName: ' + value + '\n';
           return prefix + text;
         }
+        function applyTargetHostToYaml(yamlText, targetHost) {
+          const host = String(targetHost || '').trim();
+          const value = '"' + host.replace(/"/g, '\\"') + '"';
+          const text = String(yamlText || '');
+          if (text.match(/^targetHost:\s*/m)) {
+            return text.replace(/^targetHost:\s*.*$/m, 'targetHost: ' + value);
+          }
+          const prefix = text.trim().length ? 'targetHost: ' + value + '\n' : 'targetHost: ' + value + '\n';
+          return prefix + text;
+        }
+        function parseConfigYamlText(yamlText) {
+          if (!window.YAML || typeof window.YAML.parse !== 'function') {
+            throw new Error('YAML parser unavailable in browser. Reload and try again.');
+          }
+          const source = String(yamlText || '');
+          const parsed = window.YAML.parse(source);
+          if (parsed == null) return {};
+          if (typeof parsed !== 'object' || Array.isArray(parsed)) {
+            throw new Error('YAML root must be a mapping/object.');
+          }
+          return parsed;
+        }
         async function fetchConfigJsonFromYaml() {
           const yamlText = await apiCall(ADMIN_ROOT + '/config', 'GET', undefined, true);
-          const res = await fetch(ADMIN_ROOT + '/config/validate', {
-            method: 'POST',
-            headers: { 'Authorization': 'Bearer ' + currentKey, 'Content-Type': 'text/yaml' },
-            body: yamlText,
-          });
-          if (res.status === 401) {
-            handleUnauthorized();
-            throw new Error('Unauthorized (401)');
-          }
-          const txt = await res.text();
-          let parsed = null;
-          try { parsed = JSON.parse(txt); } catch {}
-          if (!res.ok || !parsed?.data?.config) {
-            throw new Error('Failed to load config JSON');
-          }
-          return parsed.data.config;
+          return parseConfigYamlText(yamlText);
         }
         function parseInboundHeaderFilteringFromYaml(yamlText) {
           const text = String(yamlText || '');
@@ -1329,7 +1354,7 @@
               keysRefresh();
               if (el('jwt-inbound-secret-template') && !el('jwt-inbound-secret')) {
                 setHtml('jwt-inbound-secret-template', renderSecretStorage('jwt-inbound', {
-                  label: 'JWT inbound auth secret',
+                  label: 'JWT source auth secret',
                   placeholder: 'set JWT auth secret',
                   inputId: 'jwt-inbound-secret',
                   timestampFormatId: 'jwt-inbound-ts-format',
@@ -1396,17 +1421,9 @@
             let targetHost = '';
             let proxyName = '';
             try {
-              const res = await fetch(ADMIN_ROOT + '/config/validate', {
-                method: 'POST',
-                headers: { 'Authorization': 'Bearer ' + currentKey, 'Content-Type': 'text/yaml' },
-                body: yamlText,
-              });
-              const txt = await res.text();
-              const parsed = JSON.parse(txt);
-              if (res.ok) {
-                targetHost = parsed?.data?.config?.targetHost || '';
-                proxyName = parsed?.data?.config?.proxyName || '';
-              }
+              const parsed = parseConfigYamlText(yamlText);
+              targetHost = parsed?.targetHost || '';
+              proxyName = parsed?.proxyName || '';
             } catch {}
             setHtml('overview-output', formatOverviewStatus(version, debug, headers, targetHost, proxyName));
           } catch (e) {
@@ -1490,21 +1507,10 @@
             let endpointRequest = null;
             let loggingTsFormat = 'epoch_ms';
             try {
-              const res = await fetch(ADMIN_ROOT + '/config/validate', {
-                method: 'POST',
-                headers: { 'Authorization': 'Bearer ' + currentKey, 'Content-Type': 'text/yaml' },
-                body: yamlText,
-              });
-               const txt = await res.text();
-               let parsed = null;
-               try { parsed = JSON.parse(txt); } catch {}
-              if (res.ok && parsed?.data?.config?.debug?.loggingEndpoint) {
-                const cfg = parsed.data.config.debug.loggingEndpoint;
-                endpointRequest = cfg.http_request || null;
-              }
-              if (res.ok && parsed?.data?.config?.http_auth?.profiles?.logging?.timestamp_format) {
-                loggingTsFormat = parsed.data.config.http_auth.profiles.logging.timestamp_format || 'epoch_ms';
-              }
+              const parsed = parseConfigYamlText(yamlText);
+              const cfg = parsed?.debug?.loggingEndpoint;
+              if (cfg) endpointRequest = cfg.http_request || null;
+              loggingTsFormat = parsed?.http_auth?.profiles?.logging?.timestamp_format || 'epoch_ms';
             } catch {}
             setRequestForm('logging-req', endpointRequest || {});
             if (el('logging-ts-format')) el('logging-ts-format').value = loggingTsFormat || 'epoch_ms';
@@ -1573,6 +1579,7 @@
             }
             if (el('config-yaml')) el('config-yaml').value = text;
             if (el('proxy-name')) el('proxy-name').value = parseProxyNameFromYaml(text);
+            if (el('target-host')) el('target-host').value = parseTargetHostFromYaml(text);
             updateProxyHeader(el('proxy-name')?.value || '');
             setConfigValidationError('');
             setConfigSaveEnabled(true);
@@ -1598,46 +1605,30 @@
           if (modal?.open) modal.close();
         }
         async function configValidate(showOutput) {
-          const yaml = applyProxyNameToYaml(el('config-yaml')?.value || '', el('proxy-name')?.value || '');
+          const yaml = applyTargetHostToYaml(
+            applyProxyNameToYaml(el('config-yaml')?.value || '', el('proxy-name')?.value || ''),
+            el('target-host')?.value || ''
+          );
           if (el('config-yaml')) el('config-yaml').value = yaml;
           try {
-            const res = await fetch(ADMIN_ROOT + '/config/validate', {
-              method: 'POST',
-              headers: { 'Authorization': 'Bearer ' + currentKey, 'Content-Type': 'text/yaml' },
-              body: yaml,
-             });
-             if (res.status === 401) {
-               handleUnauthorized();
-               throw new Error('Unauthorized (401)');
-             }
-             const text = await res.text();
-             let payload = null;
-             try {
-               payload = JSON.parse(text);
-             } catch {
-               payload = null;
-             }
-             if (!res.ok) {
-               const errText = extractApiErrorText(payload, text || 'Config validation failed');
-               setConfigValidationError(errText);
-               setConfigSaveEnabled(false);
-               if (showOutput) setOutput('config-output', 'Validation failed\\n\\n' + errText);
-               return false;
-             }
-             setConfigValidationError('');
-             setConfigSaveEnabled(true);
-             if (showOutput) setOutput('config-output', formatConfigSummary('Validation successful', payload));
-             return true;
-           } catch (e) {
-             const errText = String(e.message || e);
-             setConfigValidationError(errText);
-             setConfigSaveEnabled(false);
-             if (showOutput) setOutput('config-output', 'Validation failed\\n\\n' + errText);
-             return false;
-           }
-         }
+            parseConfigYamlText(yaml);
+            setConfigValidationError('');
+            setConfigSaveEnabled(true);
+            if (showOutput) setOutput('config-output', 'YAML syntax is valid.');
+            return true;
+          } catch (e) {
+            const errText = String(e.message || e);
+            setConfigValidationError(errText);
+            setConfigSaveEnabled(false);
+            if (showOutput) setOutput('config-output', 'Validation failed\\n\\n' + errText);
+            return false;
+          }
+        }
         async function configSave() {
-          const yaml = applyProxyNameToYaml(el('config-yaml')?.value || '', el('proxy-name')?.value || '');
+          const yaml = applyTargetHostToYaml(
+            applyProxyNameToYaml(el('config-yaml')?.value || '', el('proxy-name')?.value || ''),
+            el('target-host')?.value || ''
+          );
           if (el('config-yaml')) el('config-yaml').value = yaml;
           const valid = await configValidate(false);
           if (!valid) {
@@ -1975,7 +1966,7 @@
               + '<input data-kind="' + kind + '" data-field="name" data-index="' + i + '" value="' + htmlEscape(rule.name || '') + '" style="width:100%;max-width:460px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />'
               + '<label style="display:flex;gap:8px;align-items:center;margin:10px 0 6px;">'
               + '<input type="checkbox" class="rule-match-toggle" data-kind="' + kind + '" data-index="' + i + '" data-target="' + methodTarget + '"' + (methodEnabled ? ' checked' : '') + ' />'
-              + '<span>Match On HTTP Method</span>'
+              + '<span>Only match on HTTP Method</span>'
               + '</label>'
               + '<div id="' + methodTarget + '" style="display:' + (methodEnabled ? 'block' : 'none') + ';">'
               + '<label style="display:block;margin:6px 0 4px;">Method list (comma-separated)</label>'
@@ -1986,7 +1977,7 @@
               + (kind === 'inbound'
                 ? ('<label style="display:flex;gap:8px;align-items:center;margin:10px 0 6px;">'
                   + '<input type="checkbox" class="rule-match-toggle" data-kind="' + kind + '" data-index="' + i + '" data-target="' + statusTarget + '"' + (statusEnabled ? ' checked' : '') + ' />'
-                  + '<span>Match On HTTP Codes</span>'
+                  + '<span>Only match on HTTP Codes</span>'
                   + '</label>'
                   + '<div id="' + statusTarget + '" style="display:' + (statusEnabled ? 'block' : 'none') + ';">'
                   + '<label style="display:block;margin:6px 0 4px;">Response code list (comma-separated)</label>'
@@ -1997,7 +1988,7 @@
                 : '')
               + '<label style="display:flex;gap:8px;align-items:center;margin:10px 0 6px;">'
               + '<input type="checkbox" class="rule-match-toggle" data-kind="' + kind + '" data-index="' + i + '" data-target="' + headersTarget + '"' + (headersEnabled ? ' checked' : '') + ' />'
-              + '<span>Match On Header(s)</span>'
+              + '<span>Only match on Header(s)</span>'
               + '</label>'
               + '<div id="' + headersTarget + '" style="display:' + (headersEnabled ? 'block' : 'none') + ';">'
               + '<div style="margin:6px 0 4px;">List of headers</div>'
@@ -2021,6 +2012,12 @@
         }
          function parseCsvList(v) {
            return String(v || '').split(',').map((s) => s.trim()).filter(Boolean);
+         }
+         function parseLineOrCsvList(v) {
+           return String(v || '')
+             .split(/\r?\n|,/)
+             .map((s) => s.trim())
+             .filter(Boolean);
          }
         function collectRuleDrafts(kind) {
           const listId = kind === 'outbound' ? 'outbound-rules-list' : 'inbound-rules-list';
@@ -2079,6 +2076,12 @@
             const d = payload?.data || {};
             const outbound = d.outbound || {};
             const inbound = d.inbound || {};
+            if (el('outbound-transform-enabled')) {
+              el('outbound-transform-enabled').checked = outbound.enabled !== false;
+            }
+            if (el('inbound-transform-enabled')) {
+              el('inbound-transform-enabled').checked = inbound.enabled !== false;
+            }
             let headerMode = inbound?.header_filtering?.mode;
             let headerNames = Array.isArray(inbound?.header_filtering?.names) ? inbound.header_filtering.names : [];
             if (!headerMode && !headerNames.length) {
@@ -2101,7 +2104,7 @@
             }
             if (el('inbound-header-filtering-mode')) el('inbound-header-filtering-mode').value = String(headerMode || 'blacklist');
             if (el('inbound-header-filtering-names')) {
-              const names = Array.isArray(headerNames) ? headerNames.join(', ') : '';
+              const names = Array.isArray(headerNames) ? headerNames.join('\n') : '';
               el('inbound-header-filtering-names').value = names;
             }
             updateInboundHeaderFilteringHelp(el('inbound-header-filtering-mode')?.value || 'blacklist');
@@ -2128,17 +2131,17 @@
              };
              if (kind === 'outbound') {
                payload.outbound = {
-                 enabled: true,
+                 enabled: !!el('outbound-transform-enabled')?.checked,
                  rules: collectRuleDrafts('outbound'),
                };
              } else {
                const inboundCustomEl = el('inbound-custom-js');
                payload.inbound = {
-                 enabled: true,
+                 enabled: !!el('inbound-transform-enabled')?.checked,
                  ...(inboundCustomEl ? { custom_js_preprocessor: (inboundCustomEl.value || '').trim() || null } : {}),
                  header_filtering: {
                    mode: (el('inbound-header-filtering-mode')?.value || 'blacklist'),
-                   names: parseCsvList(el('inbound-header-filtering-names')?.value || ''),
+                   names: parseLineOrCsvList(el('inbound-header-filtering-names')?.value || ''),
                  },
                  rules: collectRuleDrafts('inbound'),
                };
@@ -2782,6 +2785,12 @@
           el('inbound-header-filtering-mode')?.addEventListener('change', () => {
             updateInboundHeaderFilteringHelp(el('inbound-header-filtering-mode')?.value || 'blacklist');
           });
+          el('outbound-transform-enabled')?.addEventListener('change', () => {
+            markDirty('outbound-transform');
+          });
+          el('inbound-transform-enabled')?.addEventListener('change', () => {
+            markDirty('inbound-transform');
+          });
           el('config-yaml')?.addEventListener('input', () => {
             setConfigSaveEnabled(false);
             if (configValidateTimer) clearTimeout(configValidateTimer);
@@ -2794,6 +2803,11 @@
             markDirty('overview');
           });
           el('proxy-name')?.addEventListener('blur', () => configValidate(true));
+          el('target-host')?.addEventListener('input', () => {
+            setConfigSaveEnabled(false);
+            markDirty('overview');
+          });
+          el('target-host')?.addEventListener('blur', () => configValidate(true));
           el('headers-list')?.addEventListener('click', (evt) => {
             const target = evt.target?.closest ? evt.target.closest('.delete-header-btn') : null;
             if (!target) return;
@@ -2944,7 +2958,6 @@
              const queryToken = String(params.get('admin_access_token') || '').trim();
              if (queryToken) {
                try { sessionStorage.setItem(ADMIN_ACCESS_TOKEN_STORAGE, queryToken); } catch {}
-               try { window.history.replaceState({}, '', ADMIN_ROOT); } catch {}
              }
              const token = queryToken || sessionStorage.getItem(ADMIN_ACCESS_TOKEN_STORAGE) || '';
             if (token) {

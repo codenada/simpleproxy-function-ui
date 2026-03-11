@@ -139,7 +139,13 @@
     if (outputNode) outputNode.textContent = '';
   });
 
-  window.addEventListener('beforeunload', () => {
+  window.addEventListener('beforeunload', (evt) => {
+    const hasVisibleLogs = !!(outputNode && String(outputNode.textContent || '').trim());
+    const streamActive = !!abortController;
+    if (hasVisibleLogs || streamActive) {
+      evt.preventDefault();
+      evt.returnValue = '';
+    }
     stopStream();
   });
 

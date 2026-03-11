@@ -18,7 +18,6 @@ function applyAdminShellHandlers(handlers, deps) {
 function applyConfigHandlers(handlers, deps) {
   handlers.handleConfigGet = deps.handleConfigGet;
   handlers.handleConfigPut = deps.handleConfigPut;
-  handlers.handleConfigValidate = deps.handleConfigValidate;
   handlers.handleConfigTestRule = deps.handleConfigTestRule;
   handlers.handleKeyRotationConfigGet = deps.handleKeyRotationConfigGet;
   handlers.handleKeyRotationConfigPut = deps.handleKeyRotationConfigPut;

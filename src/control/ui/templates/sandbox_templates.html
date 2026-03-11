@@ -25,14 +25,6 @@ const SANDBOX_TEMPLATES = {
     headers: { 'Content-Type': 'text/yaml' },
     body: 'transform:\\n  enabled: true\\n  source_request:\\n    enabled: false\\n    rules: []\\n  target_response:\\n    enabled: true\\n    rules: []\\nheader_forwarding:\\n  mode: blacklist\\n  names:\\n    - connection\\n    - host\\n    - content-length\\n    - x-proxy-key\\n    - x-admin-key\\n    - x-issuer-key',
   },
-  admin_config_validate: {
-    label: 'POST ' + ADMIN_ROOT + '/config/validate',
-    method: 'POST',
-    path: ADMIN_ROOT + '/config/validate',
-    auth_mode: 'admin_token',
-    headers: { 'Content-Type': 'text/yaml' },
-    body: 'transform:\\n  enabled: true\\n  source_request:\\n    enabled: false\\n    rules: []\\n  target_response:\\n    enabled: true\\n    rules: []',
-  },
   admin_config_test_rule: {
     label: 'POST ' + ADMIN_ROOT + '/config/test-rule',
     method: 'POST',
@@ -55,4 +47,3 @@ const SANDBOX_TEMPLATES = {
 };
 
 const SANDBOX_API_PREFIX = '/_apiproxy';
-

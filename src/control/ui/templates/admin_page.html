@@ -47,6 +47,9 @@
           <label for="proxy-name" style="display:block;margin:8px 0 4px;">Proxy name</label>
           <input id="proxy-name" type="text" placeholder="friendly name"
             style="width:100%;max-width:520px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;margin-bottom:10px;" />
+          <label for="target-host" style="display:block;margin:8px 0 4px;">Target URL</label>
+          <input id="target-host" type="url" placeholder="https://api.example.com"
+            style="width:100%;max-width:620px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;margin-bottom:10px;" />
           <div id="overview-output" style="padding:12px;border:1px solid #ddd;border-radius:8px;line-height:1.6;">Click "Refresh status".</div>
           <button type="button" id="overview-refresh-btn">Refresh status</button>
         </div>
@@ -342,9 +345,9 @@
              <option value="blacklist">blacklist</option>
              <option value="whitelist">whitelist</option>
            </select>
-           <label for="inbound-header-filtering-names" style="display:block;margin:8px 0 4px;">Header list (comma-separated)</label>
-           <input id="inbound-header-filtering-names" type="text" placeholder="authorization, cookie"
-             style="width:100%;max-width:620px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />
+           <label for="inbound-header-filtering-names" style="display:block;margin:8px 0 4px;">Header list (one per line)</label>
+           <textarea id="inbound-header-filtering-names" rows="5" placeholder="authorization&#10;cookie"
+             style="width:100%;max-width:620px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;"></textarea>
            <div id="inbound-header-filtering-help" style="font-size:12px;color:#64748b;margin-top:4px;"></div>
            <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;"></div>
            </div>
@@ -458,4 +461,5 @@
          </div>
          <pre id="api-error-output" style="margin-top:10px;padding:12px;border:1px solid #ddd;border-radius:8px;white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;"></pre>
        </dialog>
+<script src="https://unpkg.com/yaml@2.8.2/browser/index.js"></script>
 {{admin_page_script_html}}

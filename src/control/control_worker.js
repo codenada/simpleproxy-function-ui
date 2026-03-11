@@ -47,6 +47,7 @@ import {
 } from "./control_routes.js";
 import { createPlatformAdapters } from "../platform/index.js";
 import { createProxySupportApi } from "../common/proxy_support.js";
+import { createAdminActivityAuditApi } from "../common/admin_activity_audit.js";
 import { dispatchPublicRoute } from "../common/routes/public.js";
 import { dispatchAdminRoute } from "./routes/admin.js";
 import { buildControlRouteHandlers } from "./routes/handler_registry.js";
@@ -107,7 +108,6 @@ const ADMIN_ROOT = CONTROL_ADMIN_ROOT;
  * - GET /admin/version
  * - POST /admin/keys/{proxy|issuer|admin}/rotate
  * - GET/PUT /admin/config
- * - POST /admin/config/validate
  * - POST /admin/config/test-rule
  * - GET/PUT/DELETE /admin/debug
  * - GET /admin/debug/last
@@ -346,13 +346,32 @@ const bootstrapApi = createBootstrapApi({
   sha256HexDigest: PLATFORM.crypto.sha256Hex,
 });
 
+const adminActivityAuditApi = createAdminActivityAuditApi({
+  ensureKvBinding,
+  dataStore,
+  loadAdminConfig,
+  getClientIp,
+});
+
 function buildRouteHandlers() {
   return buildControlRouteHandlers({
     bootstrapApi,
     adminUiApi,
     swaggerApi,
-    handleRotateByKind: keyAuthApi.handleRotateByKind,
-    handleAdminAccessTokenPost: keyAuthApi.handleAdminAccessTokenPost,
+    handleRotateByKind: async (kind, request, env) => {
+      const response = await keyAuthApi.handleRotateByKind(kind, request, env);
+      try {
+        await adminActivityAuditApi.appendAdminActivity(env, request, "key_rotation", { key_kind: kind });
+      } catch {}
+      return response;
+    },
+    handleAdminAccessTokenPost: async (request, env) => {
+      const response = await keyAuthApi.handleAdminAccessTokenPost(request, env);
+      try {
+        await adminActivityAuditApi.appendAdminActivity(env, request, "admin_login", {});
+      } catch {}
+      return response;
+    },
     handleVersion,
     handleKeysStatusGet,
     ...configHandlers,
@@ -390,6 +409,11 @@ const configHandlers = createControlConfigHandlers({
   evalJsonataWithTimeout: transformRuntimeApi.evalJsonataWithTimeout,
   loadYamlApi,
   defaults: DEFAULTS,
+  onConfigUpdated: async ({ request, env, diffs }) => {
+    await adminActivityAuditApi.appendAdminActivity(env, request, "config_update", {
+      changed_keys: Array.isArray(diffs) ? diffs : [],
+    });
+  },
 });
 const debugHandlers = createControlDebugHandlers({
   observabilityApi,

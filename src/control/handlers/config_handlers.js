@@ -26,7 +26,36 @@ function createControlConfigHandlers(deps) {
     evalJsonataWithTimeout,
     loadYamlApi,
     defaults,
+    onConfigUpdated,
   } = deps;
+
+  function isPlainObjectRecord(value) {
+    return !!value && typeof value === "object" && !Array.isArray(value);
+  }
+
+  function collectConfigDiffs(before, after, basePath = "", out = []) {
+    const currentPath = basePath || "";
+    const beforeIsObj = isPlainObjectRecord(before);
+    const afterIsObj = isPlainObjectRecord(after);
+
+    if (!beforeIsObj || !afterIsObj) {
+      const same = JSON.stringify(before) === JSON.stringify(after);
+      if (!same) {
+        out.push({
+          key: currentPath || "(root)",
+          value: after,
+        });
+      }
+      return out;
+    }
+
+    const keys = Array.from(new Set([...Object.keys(before), ...Object.keys(after)])).sort();
+    for (const key of keys) {
+      const nextPath = currentPath ? `${currentPath}.${key}` : key;
+      collectConfigDiffs(before[key], after[key], nextPath, out);
+    }
+    return out;
+  }
 
   async function readConfigInputByContentType(request, maxBytes) {
     const contentType = getStoredContentType(request.headers);
@@ -72,28 +101,27 @@ function createControlConfigHandlers(deps) {
   }
 
   async function handleConfigPut(request, env) {
+    const existing = await loadConfigV1(env);
     const parsed = await readNormalizedConfigRequest(request, env);
     const normalized =
       parsed.format === "yaml"
         ? await saveConfigFromYamlV1(parsed.yamlText, env)
         : await saveConfigObjectV1(parsed.config, env);
+
+    if (typeof onConfigUpdated === "function") {
+      const diffs = collectConfigDiffs(existing, normalized);
+      try {
+        await onConfigUpdated({ request, env, diffs });
+      } catch {
+        // best-effort audit log; do not block config save
+      }
+    }
+
     return jsonResponse(200, {
       ok: true,
       data: {
         message: "Configuration updated",
         config: normalized,
-      },
-      meta: {},
-    });
-  }
-
-  async function handleConfigValidate(request, env) {
-    const parsed = await readNormalizedConfigRequest(request, env);
-    return jsonResponse(200, {
-      ok: true,
-      data: {
-        valid: true,
-        config: parsed.config,
       },
       meta: {},
     });
@@ -360,7 +388,6 @@ function createControlConfigHandlers(deps) {
   return {
     handleConfigGet,
     handleConfigPut,
-    handleConfigValidate,
     handleConfigTestRule,
     handleKeyRotationConfigGet,
     handleKeyRotationConfigPut,

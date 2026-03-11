@@ -19,7 +19,6 @@ const CONTROL_ADMIN_PATHS = {
   KEYS_ISSUER_ROTATE: "/keys/issuer/rotate",
   KEYS_ADMIN_ROTATE: "/keys/admin/rotate",
   CONFIG: "/config",
-  CONFIG_VALIDATE: "/config/validate",
   CONFIG_TEST_RULE: "/config/test-rule",
   KEY_ROTATION_CONFIG: "/key-rotation-config",
   TRANSFORM_CONFIG: "/transform-config",
