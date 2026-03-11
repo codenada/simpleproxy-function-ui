@@ -42,8 +42,8 @@
          <div style="flex:1;min-width:0;">
         <div id="tab-overview" class="tab-panel">
           <p><b>General</b></p>
+          <p style="margin:0 0 8px 0;"><a href="#" id="overview-refresh-btn">Refresh status</a></p>
           <div id="overview-output" style="padding:12px;border:1px solid #ddd;border-radius:8px;line-height:1.6;">Click "Refresh status".</div>
-          <button type="button" id="overview-refresh-btn" style="margin-top:8px;">Refresh status</button>
           <label for="proxy-name" style="display:block;margin:8px 0 4px;">Proxy name</label>
           <input id="proxy-name" type="text" placeholder="friendly name"
             style="width:100%;max-width:520px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;margin-bottom:10px;" />
@@ -57,10 +57,11 @@
             <span>Enabled</span>
           </label>
           <div id="outbound-auth-fields">
-          <label for="kr-strategy" style="display:block;margin:10px 0 4px;">Strategy</label>
+          <label for="kr-strategy" style="display:block;margin:10px 0 4px;">Authentication Type</label>
           <select id="kr-strategy" style="width:100%;max-width:420px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;">
-            <option value="json_ttl">json_ttl</option>
-            <option value="oauth_client_credentials">oauth_client_credentials</option>
+            <option value="static">static</option>
+            <option value="oauth_client_credentials">OAuth</option>
+            <option value="json_ttl">Generic TTL Rotation</option>
           </select>
 
           <p style="margin:10px 0 6px;"><b>Request</b></p>
@@ -165,7 +166,8 @@
         </div>
         <div id="tab-inbound-auth" class="tab-panel" style="display:none;">
            <p><b>API Keys</b></p>
-           <label for="kr-proxy-expiry" style="display:block;margin:10px 0 4px;">Proxy Key Expiration</label>
+           <p><b>Proxy Key</b></p>
+           <label for="kr-proxy-expiry" style="display:block;margin:10px 0 4px;">Expiration</label>
            <select id="kr-proxy-expiry" style="width:100%;max-width:240px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;">
              <option value="">Never expires</option>
              <option value="3600">1 hour</option>
@@ -176,8 +178,8 @@
            </select>
            <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;"></div>
            <div style="display:flex;align-items:center;gap:8px;margin:10px 0 6px;">
-             <b>Proxy Key Status</b>
-             <a href="#" id="keys-refresh-link-inbound">refresh</a>
+             <b>Status</b>
+             <a href="#" id="keys-refresh-link-inbound">Check latest status</a>
            </div>
            <div id="keys-status-inbound" style="padding:12px;border:1px solid #ddd;border-radius:8px;line-height:1.6;margin-bottom:10px;">Key status will appear here.</div>
            <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -264,8 +266,9 @@
              </div>
            </div>
            <hr style="margin:12px 0;border:none;border-top:1px solid #e2e8f0;" />
+           <p><b>Admin Key</b></p>
            <div style="display:flex;align-items:center;gap:8px;margin:10px 0 6px;">
-             <b>Admin Key Status</b>
+             <b>Status</b>
              <a href="#" id="keys-refresh-link-admin">Check latest status</a>
            </div>
            <div id="keys-status-admin" style="padding:12px;border:1px solid #ddd;border-radius:8px;line-height:1.6;margin-bottom:10px;">Admin key status will appear here.</div>

@@ -178,12 +178,12 @@
             + '</div>'
             + (enableHttpAuthorization
               ? ('<div style="margin-top:12px;padding-top:10px;border-top:1px solid #e2e8f0;">'
-                + '<label for="' + prefix + '-auth-type" style="display:block;margin:0 0 4px;">HTTP Authorization</label>'
+                + '<label for="' + prefix + '-auth-type" style="display:block;margin:0 0 4px;">Authentication Type</label>'
                 + '<select id="' + prefix + '-auth-type" style="width:100%;max-width:260px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;">'
                 + '<option value="none">none</option>'
                 + '<option value="static">static</option>'
-                + '<option value="key_rotation">key_rotation</option>'
-                + '<option value="oauth_client_credentials">oauth_client_credentials</option>'
+                + '<option value="key_rotation">Generic TTL Rotation</option>'
+                + '<option value="oauth_client_credentials">OAuth</option>'
                 + '</select>'
                 + '<div id="' + prefix + '-auth-static-wrap" style="display:none;">'
                 + '<label for="' + prefix + '-auth-header-name" style="display:block;margin:10px 0 4px;">Auth header name</label>'
@@ -1699,7 +1699,9 @@
             const d = payload?.data || {};
             if (el('target-auth-ts-format')) el('target-auth-ts-format').value = targetTsFormat || 'epoch_ms';
              setOutboundAuthEnabled(!!d.enabled);
-             if (el('kr-strategy')) el('kr-strategy').value = d.strategy || 'json_ttl';
+             if (el('kr-strategy')) {
+               el('kr-strategy').value = d.strategy === 'oauth_client_credentials' ? 'oauth_client_credentials' : 'json_ttl';
+             }
              if (el('kr-request-form')) setRequestForm('kr', d.request || {});
              if (el('kr-key-path')) el('kr-key-path').value = String(d.key_path || '');
              if (el('kr-ttl-path')) el('kr-ttl-path').value = d.ttl_path == null ? '' : String(d.ttl_path);
@@ -1718,11 +1720,13 @@
         async function keyRotationSave(dirtyTabToClear) {
           try {
             const outboundAuthEnabled = !!el('outbound-auth-enabled')?.checked;
+            const selectedStrategy = String(el('kr-strategy')?.value || 'json_ttl').trim();
+            const normalizedStrategy = selectedStrategy === 'oauth_client_credentials' ? 'oauth_client_credentials' : 'json_ttl';
              const req = readRequestForm('kr');
              await persistRequestAuthSecret('kr');
              const payload = {
                enabled: outboundAuthEnabled,
-               strategy: (el('kr-strategy')?.value || 'json_ttl'),
+               strategy: normalizedStrategy,
                request: req,
                key_path: el('kr-key-path')?.value || '',
                ttl_path: el('kr-ttl-path')?.value || null,
@@ -2631,7 +2635,10 @@
             evt.preventDefault();
             logoutExplicit();
           });
-           el('overview-refresh-btn')?.addEventListener('click', refreshOverview);
+           el('overview-refresh-btn')?.addEventListener('click', (evt) => {
+             evt.preventDefault();
+             refreshOverview();
+           });
           el('debug-refresh-trace-link')?.addEventListener('click', (evt) => {
             evt.preventDefault();
             debugLoadTrace();
