@@ -7,7 +7,7 @@
         let sandboxTemplateKey = '';
         let outboundRuleDrafts = [];
         let inboundRuleDrafts = [];
-        let currentTabName = 'overview';
+        let currentTabName = '';
         let switchTab = null;
         const dirtyTabs = new Set();
         let unsavedModalResolve = null;
@@ -454,10 +454,30 @@
         function markDirty(tabName) {
           if (!tabName) return;
           dirtyTabs.add(tabName);
+          updateSharedFooterState();
         }
         function clearDirty(tabName) {
           if (!tabName) return;
           dirtyTabs.delete(tabName);
+          updateSharedFooterState();
+        }
+        function setSharedFooterEnabled(enabled) {
+          const on = !!enabled;
+          const saveBtn = el('shared-save-btn');
+          const revertBtn = el('shared-revert-btn');
+          if (saveBtn) {
+            saveBtn.disabled = !on;
+            saveBtn.style.opacity = on ? '1' : '0.5';
+            saveBtn.style.cursor = on ? 'pointer' : 'not-allowed';
+          }
+          if (revertBtn) {
+            revertBtn.disabled = !on;
+            revertBtn.style.opacity = on ? '1' : '0.5';
+            revertBtn.style.cursor = on ? 'pointer' : 'not-allowed';
+          }
+        }
+        function updateSharedFooterState() {
+          setSharedFooterEnabled(!!currentTabName && dirtyTabs.has(currentTabName));
         }
         async function promptUnsavedChanges() {
           const modal = el('unsaved-changes-modal');
@@ -520,7 +540,8 @@
         async function saveTabChanges(tabName) {
           const beforeDirty = dirtyTabs.has(tabName);
           if (!beforeDirty) return true;
-          if (tabName === 'debug') await loggingSave();
+          if (tabName === 'overview') await configSave();
+          else if (tabName === 'debug') await loggingSave();
           else if (tabName === 'config') await configSave();
           else if (tabName === 'outbound-auth') await keyRotationSave();
           else if (tabName === 'inbound-auth') await inboundAuthSave();
@@ -531,6 +552,11 @@
         }
         async function discardTabChanges(tabName) {
           if (!tabName || !dirtyTabs.has(tabName)) return;
+          if (tabName === 'overview') {
+            await configLoad();
+            clearDirty('overview');
+            return;
+          }
           if (tabName === 'debug') {
             await loadLoggingStatus();
             await debugLoadTrace();
@@ -1146,6 +1172,7 @@
             if (name === 'inbound-transform') transformConfigLoad();
             if (name === 'sandbox') sandboxInit();
             currentTabName = name;
+            updateSharedFooterState();
           }
           switchTab = setActiveTab;
            btns.forEach((btn) => {
@@ -1350,6 +1377,7 @@
             setConfigSaveEnabled(true);
             setOutput('config-output', 'Config reloaded from proxy.');
             clearDirty('config');
+            clearDirty('overview');
           } catch (e) {
              setOutput('config-output', String(e.message || e));
              setConfigSaveEnabled(false);
@@ -1436,6 +1464,7 @@
                setOutput('config-output', 'Config saved');
              }
              clearDirty('config');
+             clearDirty('overview');
            } catch (e) {
              setOutput('config-output', 'Not saved\\n\\n' + String(e.message || e));
            }
@@ -2206,6 +2235,18 @@
         function bind() {
           attachTabs();
           updateProxyHeader('');
+          [
+            'footer-save-logging',
+            'footer-save-config',
+            'footer-save-outbound-auth',
+            'footer-save-outbound-transform',
+            'footer-save-inbound-transform',
+            'footer-save-inbound-auth',
+            'footer-save-admin-auth',
+          ].forEach((id) => {
+            const node = el(id);
+            if (node) node.style.display = 'none';
+          });
           if (el('sandbox-request-form')) {
             setHtml('sandbox-request-form', renderRequestForm('sandbox'));
             bindRequestFormToggles('sandbox');
@@ -2362,7 +2403,7 @@
           el('proxy-name')?.addEventListener('input', () => {
             updateProxyHeader(el('proxy-name')?.value || '');
             setConfigSaveEnabled(false);
-            markDirty('config');
+            markDirty('overview');
           });
           el('proxy-name')?.addEventListener('blur', () => configValidate(true));
            el('headers-save-btn')?.addEventListener('click', headersSave);
@@ -2474,6 +2515,16 @@
           });
           el('footer-save-inbound-auth')?.addEventListener('click', inboundAuthSave);
           el('footer-save-admin-auth')?.addEventListener('click', adminAuthSave);
+          el('shared-save-btn')?.addEventListener('click', async () => {
+            if (!currentTabName || !dirtyTabs.has(currentTabName)) return;
+            await saveTabChanges(currentTabName);
+            updateSharedFooterState();
+          });
+          el('shared-revert-btn')?.addEventListener('click', async () => {
+            if (!currentTabName || !dirtyTabs.has(currentTabName)) return;
+            await discardTabChanges(currentTabName);
+            updateSharedFooterState();
+          });
           el('jwt-enabled')?.addEventListener('change', () => {
             setJwtEnabled(!!el('jwt-enabled')?.checked);
           });

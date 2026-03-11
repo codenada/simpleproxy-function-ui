@@ -389,6 +389,12 @@
            <p style="margin-top:10px;"><b>Response</b></p>
            <pre id="sandbox-response" style="margin-top:6px;padding:12px;border:1px solid #ddd;border-radius:8px;white-space:pre-wrap;word-break:break-word;">Response appears here.</pre>
          </div>
+         <div id="shared-tab-footer" style="margin-top:14px;border-top:1px solid #e2e8f0;padding-top:10px;display:flex;justify-content:flex-end;gap:12px;align-items:center;">
+           <button type="button" id="shared-revert-btn" disabled
+             style="background:#fff;color:#dc2626;border:1px solid #dc2626;padding:8px 14px;border-radius:8px;cursor:not-allowed;opacity:0.5;">Revert</button>
+           <button type="button" id="shared-save-btn" disabled
+             style="background:#2563eb;color:#fff;border:1px solid #2563eb;padding:8px 14px;border-radius:8px;cursor:not-allowed;opacity:0.5;">Save</button>
+         </div>
          </div>
          </div>
        </div>
@@ -404,8 +410,8 @@
          <p style="margin-top:0;"><b>Unsaved changes</b></p>
          <p style="margin:8px 0 12px 0;">You have unsaved changes on this page.</p>
          <div style="display:flex;gap:8px;justify-content:flex-end;">
-           <button type="button" id="unsaved-save-btn">Save Changes</button>
-           <button type="button" id="unsaved-discard-btn">Continue Without Saving</button>
+           <button type="button" id="unsaved-save-btn" style="background:#2563eb;color:#fff;border:1px solid #2563eb;padding:8px 12px;border-radius:8px;">Save Changes</button>
+           <button type="button" id="unsaved-discard-btn" style="background:#fff;color:#dc2626;border:1px solid #dc2626;padding:8px 12px;border-radius:8px;">Continue Without Saving</button>
            <button type="button" id="unsaved-cancel-btn">Cancel</button>
          </div>
        </dialog>
