@@ -26,6 +26,7 @@ const CONTROL_ADMIN_PATHS = {
   DEBUG: "/debug",
   DEBUG_LAST: "/debug/last",
   DEBUG_LOGGING_SECRET: "/debug/loggingSecret",
+  LIVE_LOG_PAGE: "/live-log",
   LIVE_LOG_STREAM: "/live-log/stream",
   HTTP_AUTH_PREFIX: "/http-auth/",
   HTTP_SECRETS_PREFIX: "/http-secrets/",

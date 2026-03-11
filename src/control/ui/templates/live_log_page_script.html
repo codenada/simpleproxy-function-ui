@@ -1,0 +1,148 @@
+<script>
+(function () {
+  const ADMIN_ROOT = '{{admin_root}}';
+  const LIVE_LOG_MAX_CHARS = 200000;
+  const params = new URLSearchParams(window.location.search || '');
+  const token = String(params.get('admin_access_token') || '').trim();
+  const outputNode = document.getElementById('live-log-output');
+  const statusNode = document.getElementById('live-log-status');
+  const reconnectLink = document.getElementById('live-log-reconnect-link');
+  const clearLink = document.getElementById('live-log-clear-link');
+  let abortController = null;
+
+  function setStatus(text, kind) {
+    if (!statusNode) return;
+    statusNode.textContent = String(text || '');
+    statusNode.style.borderColor = '#bbf7d0';
+    statusNode.style.background = '#f0fdf4';
+    statusNode.style.color = '#14532d';
+    if (kind === 'warn') {
+      statusNode.style.borderColor = '#fde68a';
+      statusNode.style.background = '#fefce8';
+      statusNode.style.color = '#854d0e';
+    } else if (kind === 'error') {
+      statusNode.style.borderColor = '#fecaca';
+      statusNode.style.background = '#fef2f2';
+      statusNode.style.color = '#991b1b';
+    }
+  }
+
+  function appendLog(text) {
+    if (!outputNode) return;
+    const next = (outputNode.textContent || '') + String(text || '') + '\n';
+    outputNode.textContent = next.length > LIVE_LOG_MAX_CHARS ? next.slice(next.length - LIVE_LOG_MAX_CHARS) : next;
+    outputNode.scrollTop = outputNode.scrollHeight;
+  }
+
+  function parseSsePayload(block) {
+    const lines = String(block || '').split('\n');
+    let event = 'message';
+    const dataLines = [];
+    for (const line of lines) {
+      if (!line || line.startsWith(':')) continue;
+      if (line.startsWith('event:')) {
+        event = line.slice(6).trim() || 'message';
+        continue;
+      }
+      if (line.startsWith('data:')) dataLines.push(line.slice(5).trimStart());
+    }
+    return { event, data: dataLines.join('\n') };
+  }
+
+  function stopStream() {
+    if (abortController) {
+      try { abortController.abort(); } catch {}
+      abortController = null;
+    }
+  }
+
+  async function startStream() {
+    if (!token) {
+      setStatus('Missing admin access token.', 'error');
+      return;
+    }
+    stopStream();
+    abortController = new AbortController();
+    setStatus('Live logging: connecting...', null);
+
+    try {
+      const res = await fetch(ADMIN_ROOT + '/live-log/stream', {
+        method: 'GET',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Accept': 'text/event-stream',
+        },
+        signal: abortController.signal,
+      });
+      if (res.status === 401) {
+        setStatus('Unauthorized. Re-login and relaunch live logging.', 'error');
+        return;
+      }
+      if (res.status === 409) {
+        setStatus('Logging is disabled. Enable it on the Logging page.', 'warn');
+        return;
+      }
+      if (!res.ok || !res.body) {
+        setStatus('Stream failed (' + res.status + ').', 'error');
+        return;
+      }
+
+      setStatus('Live logging enabled', null);
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const blocks = buffer.split('\n\n');
+        buffer = blocks.pop() || '';
+        for (const block of blocks) {
+          const parsed = parseSsePayload(block);
+          if (!parsed.data) continue;
+          let payload = parsed.data;
+          try { payload = JSON.parse(parsed.data); } catch {}
+          if (parsed.event === 'trace') {
+            const traceText = (payload && typeof payload === 'object' && payload.text != null)
+              ? String(payload.text)
+              : String(parsed.data);
+            appendLog(traceText);
+            continue;
+          }
+          if (parsed.event === 'connected') {
+            appendLog('[connected] ' + (payload?.timestamp || new Date().toISOString()));
+            continue;
+          }
+          if (parsed.event === 'last_trace' && payload?.text) {
+            appendLog('[last trace]\n' + String(payload.text));
+            continue;
+          }
+          appendLog(typeof payload === 'string' ? payload : JSON.stringify(payload, null, 2));
+        }
+      }
+      setStatus('Disconnected. Click Reconnect.', 'warn');
+    } catch (err) {
+      if (abortController && abortController.signal.aborted) {
+        setStatus('Disconnected. Click Reconnect.', 'warn');
+      } else {
+        setStatus('Stream error: ' + String(err?.message || err), 'error');
+      }
+    }
+  }
+
+  reconnectLink?.addEventListener('click', (evt) => {
+    evt.preventDefault();
+    startStream();
+  });
+  clearLink?.addEventListener('click', (evt) => {
+    evt.preventDefault();
+    if (outputNode) outputNode.textContent = '';
+  });
+
+  window.addEventListener('beforeunload', () => {
+    stopStream();
+  });
+
+  startStream();
+})();
+</script>

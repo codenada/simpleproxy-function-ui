@@ -7,6 +7,7 @@ function applyBootstrapHandlers(handlers, deps) {
 function applyAdminShellHandlers(handlers, deps) {
   handlers.handleRotateByKind = deps.handleRotateByKind;
   handlers.handleAdminPage = () => deps.adminUiApi.handleAdminPage();
+  handlers.handleLiveLogPage = () => deps.adminUiApi.handleLiveLogPage();
   handlers.handleAdminSwaggerPage = (request) => deps.swaggerApi.handleAdminSwaggerPage(request);
   handlers.handleAdminSwaggerSpec = (request) => deps.swaggerApi.handleAdminSwaggerSpec(request);
   handlers.handleAdminAccessTokenPost = deps.handleAdminAccessTokenPost;

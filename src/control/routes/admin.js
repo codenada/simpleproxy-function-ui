@@ -101,6 +101,10 @@ async function dispatchAdminRoute({ normalizedPath, request, env, adminRoot, han
     await auth.requireAdminAuth(request, env);
     return handlers.handleDebugLastGet(request);
   }
+  if (normalizedPath === `${adminRoot}${CONTROL_ADMIN_PATHS.LIVE_LOG_PAGE}` && request.method === "GET") {
+    await auth.requireAdminAuth(request, env);
+    return handlers.handleLiveLogPage();
+  }
   if (normalizedPath === `${adminRoot}${CONTROL_ADMIN_PATHS.LIVE_LOG_STREAM}` && request.method === "GET") {
     await auth.requireAdminAuth(request, env);
     return handlers.handleLiveLogStream(env);

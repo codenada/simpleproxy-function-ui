@@ -2,10 +2,12 @@ import pageTemplate from "./ui/templates/page.html";
 import onboardingHeaderTemplate from "./ui/templates/onboarding_header.html";
 import adminLoginOptionsTemplate from "./ui/templates/admin_login_options.html";
 import adminPageTemplate from "./ui/templates/admin_page.html";
+import liveLogPageTemplate from "./ui/templates/live_log_page.html";
 import secretFieldTemplate from "./ui/templates/secret_field.html";
 import initAdminLoginScriptTemplate from "./ui/templates/init_admin_login_script.html";
 import secretFieldScriptTemplate from "./ui/templates/secret_field_script.html";
 import adminPageScriptTemplate from "./ui/templates/admin_page_script.html";
+import liveLogPageScriptTemplate from "./ui/templates/live_log_page_script.html";
 import sandboxTemplatesTemplate from "./ui/templates/sandbox_templates.html";
 import { FAVICON_DATA_URL, escapeHtml, capitalize } from "../common/html.js";
 
@@ -14,10 +16,12 @@ const templates = {
   onboarding_header: onboardingHeaderTemplate,
   admin_login_options: adminLoginOptionsTemplate,
   admin_page: adminPageTemplate,
+  live_log_page: liveLogPageTemplate,
   init_admin_login_script: initAdminLoginScriptTemplate,
   secret_field: secretFieldTemplate,
   secret_field_script: secretFieldScriptTemplate,
   admin_page_script: adminPageScriptTemplate,
+  live_log_page_script: liveLogPageScriptTemplate,
   sandbox_templates: sandboxTemplatesTemplate,
 };
 
@@ -89,6 +93,21 @@ export function renderAdminPage(adminRoot = "/admin") {
     favicon_data_url: FAVICON_DATA_URL,
     admin_root: String(adminRoot || "/admin"),
     admin_page_script_html: adminPageScriptHtml,
+  });
+  return new Response(
+    htmlPage("", bodyHtml),
+    { headers: { "content-type": "text/html; charset=utf-8" } }
+  );
+}
+
+export function renderLiveLogPage(adminRoot = "/admin") {
+  const liveLogPageScriptHtml = renderTemplate("live_log_page_script", {
+    admin_root: String(adminRoot || "/admin"),
+  });
+  const bodyHtml = renderTemplate("live_log_page", {
+    favicon_data_url: FAVICON_DATA_URL,
+    admin_root: String(adminRoot || "/admin"),
+    live_log_page_script_html: liveLogPageScriptHtml,
   });
   return new Response(
     htmlPage("", bodyHtml),

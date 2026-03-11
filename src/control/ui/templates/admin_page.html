@@ -71,7 +71,7 @@
            <p style="margin-top:12px;margin-bottom:6px;">Last Log</p>
            <pre id="debug-output" style="margin-top:10px;padding:12px;border:1px solid #ddd;border-radius:8px;white-space:pre-wrap;word-break:break-word;max-height:320px;overflow:auto;">Debug output appears here.</pre>
            <p style="margin-top:10px;"><a href="#" id="debug-refresh-trace-link">Refresh</a></p>
-           <p style="margin-top:8px;"><a href="#" id="launch-live-log-link" style="color:#64748b;pointer-events:none;opacity:0.6;text-decoration:underline;">Launch live logging</a></p>
+           <p style="margin-top:8px;"><a href="#" id="launch-live-log-link" style="color:#0f172a;opacity:1;text-decoration:underline;">Launch live logging</a></p>
            <p style="margin-top:16px;"><b>External Logging Configuration</b></p>
            <label style="display:flex;gap:8px;align-items:center;margin:8px 0 6px;">
              <input id="logging-config-enabled" type="checkbox" />
@@ -109,9 +109,6 @@
              <span>Enabled</span>
            </label>
            <div id="outbound-auth-fields">
-           <label for="kr-enabled" style="display:block;margin:8px 0 4px;">Enabled</label>
-           <input id="kr-enabled" type="checkbox" />
-
            <label for="kr-strategy" style="display:block;margin:10px 0 4px;">Strategy</label>
            <select id="kr-strategy" style="width:100%;max-width:420px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;">
              <option value="json_ttl">json_ttl</option>
@@ -154,15 +151,19 @@
         </div>
         <div id="tab-outbound-transform" class="tab-panel" style="display:none;">
            <p><b>Outbound Transformations</b></p>
+           <label style="display:flex;gap:8px;align-items:center;margin:8px 0 10px;">
+             <input id="outbound-transform-enabled" type="checkbox" />
+             <span>Enable outbound transformations</span>
+           </label>
+           <div id="outbound-transform-fields">
            <p style="margin:10px 0 6px;"><b>Rules</b></p>
            <div id="outbound-rules-list" style="display:flex;flex-direction:column;gap:10px;"></div>
            <div style="margin-top:8px;">
              <button type="button" id="outbound-add-rule-btn">Add rule</button>
            </div>
-           <hr style="margin:16px 0;border:none;border-top:1px solid #e2e8f0;" />
            <p><b>Enrichments</b></p>
-           <div id="headers-input-wrap" style="margin-top:8px;"></div>
            <div id="headers-list" style="margin-top:10px;padding:12px;border:1px solid #ddd;border-radius:8px;"></div>
+           </div>
           <div style="margin-top:14px;border-top:1px solid #e2e8f0;padding-top:10px;display:flex;justify-content:flex-end;">
             <button type="button" id="footer-save-outbound-transform" style="background:#0f172a;color:#fff;border:1px solid #0f172a;padding:8px 14px;border-radius:8px;">Save</button>
           </div>
@@ -187,7 +188,6 @@
            <div style="display:flex;gap:8px;flex-wrap:wrap;">
              <button type="button" id="rotate-proxy-btn">Rotate proxy key</button>
            </div>
-           <hr style="margin:16px 0;border:none;border-top:1px solid #e2e8f0;" />
            <p><b>JSON Web Token (JWT)</b></p>
            <label style="display:flex;gap:8px;align-items:center;margin:8px 0 10px;">
              <input id="jwt-enabled" type="checkbox" />
@@ -230,7 +230,6 @@
                <input id="jwt-inbound-skew" type="text" placeholder="0"
                  style="width:100%;max-width:160px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />
              </div>
-             <hr style="margin:16px 0;border:none;border-top:1px solid #e2e8f0;" />
              <p style="margin:10px 0 6px;"><b>Issue JWTs from this proxy</b></p>
              <label style="display:flex;gap:8px;align-items:center;margin:8px 0 6px;">
                <input id="jwt-outbound-enabled" type="checkbox" />
@@ -257,7 +256,6 @@
                <input id="jwt-outbound-ttl" type="text" placeholder="3600"
                  style="width:100%;max-width:160px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />
              </div>
-             <hr style="margin:16px 0;border:none;border-top:1px solid #e2e8f0;" />
              <label for="kr-issuer-expiry" style="display:block;margin:10px 0 4px;">Issuer Auth Token Expiry Seconds</label>
              <input id="kr-issuer-expiry" type="text" placeholder="n/a"
                style="width:100%;max-width:220px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />
@@ -329,6 +327,11 @@
         </div>
         <div id="tab-inbound-transform" class="tab-panel" style="display:none;">
            <p><b>Inbound Transformations</b></p>
+           <label style="display:flex;gap:8px;align-items:center;margin:8px 0 10px;">
+             <input id="inbound-transform-enabled" type="checkbox" />
+             <span>Enable inbound transformations</span>
+           </label>
+           <div id="inbound-transform-fields">
            <p style="margin:10px 0 6px;"><b>Transformation Rules</b></p>
            <div id="inbound-rules-list" style="display:flex;flex-direction:column;gap:10px;"></div>
            <div style="margin-top:8px;">
@@ -345,6 +348,7 @@
              style="width:100%;max-width:620px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />
            <div id="inbound-header-filtering-help" style="font-size:12px;color:#64748b;margin-top:4px;"></div>
            <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;"></div>
+           </div>
           <div style="margin-top:14px;border-top:1px solid #e2e8f0;padding-top:10px;display:flex;justify-content:flex-end;">
             <button type="button" id="footer-save-inbound-transform" style="background:#0f172a;color:#fff;border:1px solid #0f172a;padding:8px 14px;border-radius:8px;">Save</button>
           </div>
@@ -413,7 +417,7 @@
        </dialog>
        <dialog id="admin-rotate-confirm-modal" style="max-width:620px;border:1px solid #e2e8f0;border-radius:10px;padding:16px;">
          <p style="margin-top:0;"><b>Rotate admin key?</b></p>
-         <p style="margin:8px 0 12px 0;">Are you sure? Existing admin key will be shown one time and existing expire immediately.</p>
+         <p style="margin:8px 0 12px 0;">Are you sure? Existing admin key will be revoked immediately. New admin key will be shown one time only and must be kept elsewhere.</p>
          <div style="display:flex;gap:8px;justify-content:flex-end;">
            <button type="button" id="admin-rotate-confirm-cancel-btn">Cancel</button>
            <button type="button" id="admin-rotate-confirm-continue-btn" style="background:#2563eb;color:#fff;border:1px solid #2563eb;padding:8px 12px;border-radius:8px;">Continue</button>
@@ -421,7 +425,10 @@
        </dialog>
        <dialog id="admin-rotate-result-modal" style="max-width:700px;width:92vw;border:1px solid #e2e8f0;border-radius:10px;padding:16px;">
          <p style="margin-top:0;"><b>New admin key issued</b></p>
-         <p style="margin:8px 0 10px 0;">The old key is no longer valid. This key will not be shown again. Please copy and save.</p>
+         <p id="admin-rotate-result-status" style="margin:8px 0 10px 0;">Click Rotate now to generate a new admin key.</p>
+         <div style="display:flex;gap:8px;justify-content:flex-end;margin:0 0 10px 0;">
+           <button type="button" id="admin-rotate-now-btn" style="background:#2563eb;color:#fff;border:1px solid #2563eb;padding:8px 12px;border-radius:8px;">Rotate now</button>
+         </div>
          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
            <input id="admin-rotate-new-key" type="password" readonly
              style="width:100%;max-width:560px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc;" />

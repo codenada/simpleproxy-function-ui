@@ -1,0 +1,27 @@
+<div style="max-width:1100px;margin:0 auto;padding:16px;">
+  <div style="position:sticky;top:0;z-index:20;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+    <div style="display:flex;align-items:center;gap:10px;min-width:0;">
+      <img src="{{favicon_data_url}}" width="30" height="30" alt="SimpleProxy icon" />
+      <div style="min-width:0;">
+        <div style="font-weight:700;line-height:1.2;">SimpleProxy API Connector</div>
+        <div style="font-size:12px;color:#64748b;line-height:1.2;">Live logging stream</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end;">
+      <div id="live-log-status" style="padding:6px 10px;border:1px solid #bbf7d0;background:#f0fdf4;color:#14532d;border-radius:999px;font-size:12px;white-space:nowrap;">Live logging: connecting...</div>
+      <a href="{{admin_root}}" style="font-size:13px;color:#0f172a;text-decoration:underline;">Back to admin</a>
+    </div>
+  </div>
+
+  <div style="margin-top:12px;border:1px solid #e2e8f0;border-radius:10px;padding:10px;background:#f8fafc;">
+    <div style="display:flex;gap:10px;align-items:center;justify-content:flex-end;margin-bottom:8px;">
+      <a href="#" id="live-log-reconnect-link" style="font-size:13px;text-decoration:underline;">Reconnect</a>
+      <span style="color:#94a3b8;">|</span>
+      <a href="#" id="live-log-clear-link" style="font-size:13px;text-decoration:underline;">Clear</a>
+    </div>
+    <div style="border:1px solid #dbeafe;background:#0b1220;border-radius:8px;padding:10px;">
+      <pre id="live-log-output" style="margin:0;color:#d1fae5;white-space:pre-wrap;word-break:break-word;max-height:72vh;overflow:auto;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;"></pre>
+    </div>
+  </div>
+</div>
+{{live_log_page_script_html}}

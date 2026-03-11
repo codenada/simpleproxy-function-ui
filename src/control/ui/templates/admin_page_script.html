@@ -15,6 +15,7 @@
         let liveLogReconnectTimer = null;
         let liveLogShouldReconnect = false;
         let liveLogModalOpen = false;
+        let adminRotateCompleted = false;
         let fetchErrorHookInstalled = false;
         let lastApiErrorSignature = '';
         let lastApiErrorAtMs = 0;
@@ -1543,10 +1544,9 @@
             }
             const launchLink = el('launch-live-log-link');
             if (launchLink) {
-              const canLaunch = !!d.enabled;
-              launchLink.style.color = canLaunch ? '#0f172a' : '#64748b';
-              launchLink.style.opacity = canLaunch ? '1' : '0.6';
-              launchLink.style.pointerEvents = canLaunch ? 'auto' : 'none';
+              launchLink.style.color = '#0f172a';
+              launchLink.style.opacity = '1';
+              launchLink.style.pointerEvents = 'auto';
             }
             const configEnabled = !!(endpointRequest && endpointRequest.url);
             if (el('logging-config-enabled')) el('logging-config-enabled').checked = configEnabled;
@@ -1714,7 +1714,6 @@
             const d = payload?.data || {};
             if (el('target-auth-ts-format')) el('target-auth-ts-format').value = targetTsFormat || 'epoch_ms';
              setOutboundAuthEnabled(!!d.enabled);
-             if (el('kr-enabled')) el('kr-enabled').checked = !!d.enabled;
              if (el('kr-strategy')) el('kr-strategy').value = d.strategy || 'json_ttl';
              if (el('kr-request-form')) setRequestForm('kr', d.request || {});
              if (el('kr-key-path')) el('kr-key-path').value = String(d.key_path || '');
@@ -1735,7 +1734,6 @@
         async function keyRotationSave() {
           try {
             const outboundAuthEnabled = !!el('outbound-auth-enabled')?.checked;
-            if (el('kr-enabled')) el('kr-enabled').checked = outboundAuthEnabled;
              const req = readRequestForm('kr');
              await persistRequestAuthSecret('kr');
              const payload = {
@@ -2377,7 +2375,7 @@
           return new Promise((resolve) => {
             const modal = el('admin-rotate-confirm-modal');
             if (!modal || typeof modal.showModal !== 'function') {
-              resolve(window.confirm('Rotate admin key now? Existing key will expire immediately.'));
+              resolve(window.confirm('Rotate admin key now? Existing admin key will be revoked immediately. New admin key will be shown one time only and must be kept elsewhere.'));
               return;
             }
             const cancelBtn = el('admin-rotate-confirm-cancel-btn');
@@ -2415,14 +2413,37 @@
           const toggle = el('admin-rotate-new-key-toggle');
           if (toggle) toggle.textContent = 'show';
         }
-        function showAdminRotateResultModal(newKey) {
+        function setAdminRotateResultStatus(message, kind) {
+          const node = el('admin-rotate-result-status');
+          if (!node) return;
+          node.textContent = String(message || '');
+          node.style.color = '#0f172a';
+          if (kind === 'ok') node.style.color = '#166534';
+          if (kind === 'error') node.style.color = '#991b1b';
+        }
+        function setAdminRotateResultControls(enabled, hasKey) {
+          const rotateNowBtn = el('admin-rotate-now-btn');
+          if (rotateNowBtn) {
+            rotateNowBtn.disabled = !enabled;
+            rotateNowBtn.style.opacity = enabled ? '1' : '0.6';
+            rotateNowBtn.style.cursor = enabled ? 'pointer' : 'not-allowed';
+          }
+          const toggle = el('admin-rotate-new-key-toggle');
+          const copyBtn = el('admin-rotate-new-key-copy-btn');
+          if (toggle) toggle.style.display = hasKey ? 'inline' : 'none';
+          if (copyBtn) copyBtn.style.display = hasKey ? 'inline-block' : 'none';
+        }
+        function showAdminRotateResultModal() {
           const modal = el('admin-rotate-result-modal');
-          setAdminRotateResultKey(newKey);
+          adminRotateCompleted = false;
+          setAdminRotateResultKey('');
+          setAdminRotateResultStatus('Click Rotate now to generate a new admin key.', null);
+          setAdminRotateResultControls(true, false);
           if (modal && typeof modal.showModal === 'function') {
             if (!modal.open) modal.showModal();
-            return;
+            return true;
           }
-          window.alert('New admin key (shown once):\n\n' + String(newKey || ''));
+          return false;
         }
         async function copyAdminRotateResultKey() {
           const value = String(el('admin-rotate-new-key')?.value || '');
@@ -2438,6 +2459,46 @@
           input.focus();
           input.select();
           try { document.execCommand('copy'); } catch {}
+        }
+        function closeAdminRotateResultModal() {
+          const modal = el('admin-rotate-result-modal');
+          if (modal?.open) modal.close();
+          if (adminRotateCompleted) {
+            setCurrentKey('');
+            showWarning('Admin key rotated. Re-enter the new admin key to login.');
+            adminRotateCompleted = false;
+          }
+        }
+        async function rotateAdminNowFromModal() {
+          try {
+            setAdminRotateResultControls(false, false);
+            setAdminRotateResultStatus('Rotating admin key...', null);
+            const out = await apiCall(ADMIN_ROOT + '/keys/admin/rotate', 'POST');
+            const newKey = String(out?.data?.admin_key || '');
+            if (!newKey) throw new Error('Rotation succeeded but no new admin key was returned.');
+            setAdminRotateResultKey(newKey);
+            setAdminRotateResultStatus('The old key is no longer valid. This key will not be shown again. Please copy and save.', 'ok');
+            setAdminRotateResultControls(false, true);
+            setOutput('keys-output', out);
+            setOutput('admin-keys-output', out);
+            adminRotateCompleted = true;
+          } catch (e) {
+            setAdminRotateResultStatus(String(e.message || e), 'error');
+            setAdminRotateResultControls(true, false);
+            setOutput('keys-output', String(e.message || e));
+          }
+        }
+        async function rotateAdminFallbackNoModal() {
+          try {
+            const out = await apiCall(ADMIN_ROOT + '/keys/admin/rotate', 'POST');
+            const newKey = String(out?.data?.admin_key || '');
+            if (!newKey) throw new Error('Rotation succeeded but no new admin key was returned.');
+            window.alert('The old key is no longer valid.\n\nNew admin key (shown once):\n' + newKey);
+            setCurrentKey('');
+            showWarning('Admin key rotated. Re-enter the new admin key to login.');
+          } catch (e) {
+            setOutput('keys-output', String(e.message || e));
+          }
         }
         async function keysRefresh() {
            try {
@@ -2499,14 +2560,10 @@
           try {
             const confirmed = await showAdminRotateConfirmModal();
             if (!confirmed) return;
-            const out = await apiCall(ADMIN_ROOT + '/keys/admin/rotate', 'POST');
-            setOutput('keys-output', out);
-            setOutput('admin-keys-output', out);
-            const newKey = String(out?.data?.admin_key || '');
-            if (newKey) showAdminRotateResultModal(newKey);
-            await keysRefresh();
-            setCurrentKey('');
-            showWarning('Admin key rotated. Re-enter the new admin key to login.');
+            const opened = showAdminRotateResultModal();
+            if (!opened) {
+              await rotateAdminFallbackNoModal();
+            }
           } catch (e) {
             setOutput('keys-output', String(e.message || e));
           }
@@ -2615,8 +2672,8 @@
               showWarning('Login required.');
               return;
             }
-            const streamUrl = ADMIN_ROOT + '/live-log/stream?admin_access_token=' + encodeURIComponent(currentKey);
-            window.open(streamUrl, '_blank', 'noopener,noreferrer');
+            const pageUrl = ADMIN_ROOT + '/live-log?admin_access_token=' + encodeURIComponent(currentKey);
+            window.open(pageUrl, '_blank', 'noopener,noreferrer');
           });
           el('live-log-close-btn')?.addEventListener('click', () => {
             closeLiveLogModal();
@@ -2639,13 +2696,14 @@
             if (modal?.open) modal.close();
           });
           el('admin-rotate-result-close-btn')?.addEventListener('click', () => {
-            const modal = el('admin-rotate-result-modal');
-            if (modal?.open) modal.close();
+            closeAdminRotateResultModal();
           });
           el('admin-rotate-result-modal')?.addEventListener('cancel', (evt) => {
             evt.preventDefault();
-            const modal = el('admin-rotate-result-modal');
-            if (modal?.open) modal.close();
+            closeAdminRotateResultModal();
+          });
+          el('admin-rotate-now-btn')?.addEventListener('click', async () => {
+            await rotateAdminNowFromModal();
           });
           el('admin-rotate-new-key-toggle')?.addEventListener('click', (evt) => {
             evt.preventDefault();
