@@ -54,7 +54,7 @@
         <div id="tab-debug" class="tab-panel" style="display:none;">
            <p><b>Logging controls</b></p>
            <div id="logging-status" style="padding:12px;border:1px solid #ddd;border-radius:8px;line-height:1.6;margin:10px 0;">Loading logging status...</div>
-           <p style="margin-top:6px;margin-bottom:4px;">Current logging session expires at: <span id="logging-session-expires-at">n/a</span> <a href="#" id="logging-ttl-refresh-link">refresh</a></p>
+           <p style="margin-top:6px;margin-bottom:4px;">Current logging session expires at: <span id="logging-session-expires-at">n/a</span> (<span id="logging-ttl-remaining-hours">n/a</span> remaining)</p>
            <label for="logging-ttl-preset" style="display:block;margin:8px 0 4px;">Logging TTL</label>
            <select id="logging-ttl-preset" style="width:100%;max-width:260px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;">
              <option value="1h">1 hour</option>
@@ -154,9 +154,6 @@
         </div>
         <div id="tab-outbound-transform" class="tab-panel" style="display:none;">
            <p><b>Outbound Transformations</b></p>
-           <label for="outbound-custom-js" style="display:block;margin:8px 0 4px;">Custom JS Preprocessor</label>
-           <input id="outbound-custom-js" type="text" placeholder="hook name"
-             style="width:100%;max-width:420px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />
            <p style="margin:10px 0 6px;"><b>Rules</b></p>
            <div id="outbound-rules-list" style="display:flex;flex-direction:column;gap:10px;"></div>
            <div style="margin-top:8px;">
@@ -165,9 +162,6 @@
            <hr style="margin:16px 0;border:none;border-top:1px solid #e2e8f0;" />
            <p><b>Enrichments</b></p>
            <div id="headers-input-wrap" style="margin-top:8px;"></div>
-           <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
-             <button type="button" id="headers-save-btn">Save headers</button>
-           </div>
            <div id="headers-list" style="margin-top:10px;padding:12px;border:1px solid #ddd;border-radius:8px;"></div>
           <div style="margin-top:14px;border-top:1px solid #e2e8f0;padding-top:10px;display:flex;justify-content:flex-end;">
             <button type="button" id="footer-save-outbound-transform" style="background:#0f172a;color:#fff;border:1px solid #0f172a;padding:8px 14px;border-radius:8px;">Save</button>
@@ -335,12 +329,13 @@
         </div>
         <div id="tab-inbound-transform" class="tab-panel" style="display:none;">
            <p><b>Inbound Transformations</b></p>
-           <p style="margin:10px 0 6px;"><b>Rules</b></p>
+           <p style="margin:10px 0 6px;"><b>Transformation Rules</b></p>
            <div id="inbound-rules-list" style="display:flex;flex-direction:column;gap:10px;"></div>
            <div style="margin-top:8px;">
              <button type="button" id="inbound-add-rule-btn">Add rule</button>
            </div>
-           <label for="inbound-header-filtering-mode" style="display:block;margin:12px 0 4px;">Filter method</label>
+           <p style="margin:12px 0 6px;"><b>Header Filtering</b></p>
+           <label for="inbound-header-filtering-mode" style="display:block;margin:0 0 4px;">Filtering method</label>
            <select id="inbound-header-filtering-mode" style="width:100%;max-width:220px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;">
              <option value="blacklist">blacklist</option>
              <option value="whitelist">whitelist</option>
@@ -386,7 +381,7 @@
          <div id="shared-tab-footer" style="margin-top:14px;border-top:1px solid #e2e8f0;padding-top:10px;display:flex;justify-content:flex-start;gap:12px;align-items:center;">
            <button type="button" id="shared-save-btn" disabled
              style="background:#2563eb;color:#fff;border:1px solid #2563eb;padding:8px 14px;border-radius:8px;cursor:not-allowed;opacity:0.5;">Save</button>
-           <a href="#" id="shared-revert-link" style="color:#dc2626;text-decoration:underline;pointer-events:none;opacity:0.5;">Discard Changes</a>
+           <a href="#" id="shared-revert-link" style="color:#dc2626;text-decoration:underline;pointer-events:none;opacity:0.5;font-size:13px;">Discard Changes</a>
          </div>
          </div>
          </div>

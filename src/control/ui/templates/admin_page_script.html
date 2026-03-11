@@ -25,6 +25,11 @@
           "24h": 86400,
           "7d": 604800,
         });
+        const KEY_ROTATION_PROFILE_BY_FORM_PREFIX = Object.freeze({
+          kr: "target",
+          "jwt-jwks": "jwt_inbound",
+          "logging-req": "logging",
+        });
 {{sandbox_templates_js}}
         const SANDBOX_REDACT_HEADERS = new Set([
           'authorization',
@@ -63,6 +68,9 @@
             .replace(/</g, '&lt;')
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;');
+        }
+        function fixedKeyRotationProfileFor(prefix) {
+          return KEY_ROTATION_PROFILE_BY_FORM_PREFIX[String(prefix || "")] || "";
         }
         function renderHeaderList(prefix, options) {
           const label = options?.label || 'Headers';
@@ -133,7 +141,7 @@
           const disableHeaders = !!options?.disableHeaders;
           const disableBody = !!options?.disableBody;
           const enableHttpAuthorization = !!options?.enableHttpAuthorization;
-          const authProfileHint = options?.authProfileHint || "";
+          const fixedKeyRotationProfile = options?.fixedKeyRotationProfile || fixedKeyRotationProfileFor(prefix);
           const verbOptions = verbs
             .map((verb) => '<option value="' + htmlEscape(String(verb).toUpperCase()) + '">' + htmlEscape(String(verb).toUpperCase()) + '</option>')
             .join('');
@@ -188,10 +196,11 @@
                 + '<div style="font-size:12px;color:#64748b;margin-top:4px;">Stored in KV and referenced as ${auth_key_ref} in YAML header value.</div>'
                 + '</div>'
                 + '<div id="' + prefix + '-auth-key-rotation-wrap" style="display:none;">'
-                + '<label for="' + prefix + '-auth-profile" style="display:block;margin:10px 0 4px;">Key rotation profile</label>'
-                + '<input id="' + prefix + '-auth-profile" type="text" placeholder="logging | target | jwt_inbound"'
-                + ' style="width:100%;max-width:360px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />'
-                + (authProfileHint ? '<div style="font-size:12px;color:#64748b;margin-top:4px;">' + htmlEscape(authProfileHint) + '</div>' : '')
+                + '<label style="display:block;margin:10px 0 4px;">Key rotation profile</label>'
+                + '<div style="width:100%;max-width:360px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc;color:#334155;">'
+                + htmlEscape(fixedKeyRotationProfile || "configured by view")
+                + '</div>'
+                + '<div style="font-size:12px;color:#64748b;margin-top:4px;">Automatically set by this view.</div>'
                 + '</div>'
                 + '</div>')
               : '');
@@ -375,10 +384,11 @@
               },
             };
           } else if (authType === 'key_rotation') {
+            const mappedProfile = fixedKeyRotationProfileFor(prefix);
             req.authorization = {
               type: 'key_rotation',
               key_rotation: {
-                profile: String(el(prefix + '-auth-profile')?.value || '').trim(),
+                profile: mappedProfile || null,
               },
             };
           }
@@ -421,9 +431,6 @@
               else if (matchDollar) secretRef = matchDollar[1];
             }
             el(prefix + '-auth-secret-ref').value = secretRef;
-          }
-          if (el(prefix + '-auth-profile')) {
-            el(prefix + '-auth-profile').value = String(auth?.key_rotation?.profile || '');
           }
         }
          function setHtml(id, html) {
@@ -1341,6 +1348,7 @@
               networkControlsLoad();
             }
             if (name === 'inbound-transform') transformConfigLoad();
+            if (name === 'config') configLoad();
             if (name === 'sandbox') sandboxInit();
             currentTabName = name;
             updateSharedFooterState();
@@ -1517,6 +1525,14 @@
                 } catch {}
               }
               el('logging-session-expires-at').textContent = sessionExpiresAt;
+            }
+            if (el('logging-ttl-remaining-hours')) {
+              let remaining = 'n/a';
+              if (Number.isFinite(ttlRemaining) && ttlRemaining !== null && ttlRemaining > 0) {
+                const hours = ttlRemaining / 3600;
+                remaining = (hours >= 1 ? hours.toFixed(1) : '<1') + ' hours';
+              }
+              el('logging-ttl-remaining-hours').textContent = remaining;
             }
             if (Number(d.max_ttl_seconds || 0) > 0) {
               const currentPreset = String(el('logging-ttl-preset')?.value || '');
@@ -2091,7 +2107,6 @@
               el('inbound-header-filtering-names').value = names;
             }
             updateInboundHeaderFilteringHelp(el('inbound-header-filtering-mode')?.value || 'blacklist');
-            if (el('outbound-custom-js')) el('outbound-custom-js').value = outbound.custom_js_preprocessor || '';
             outboundRuleDrafts = Array.isArray(outbound.rules) ? outbound.rules.map(normalizeRuleForUi) : [];
             inboundRuleDrafts = Array.isArray(inbound.rules) ? inbound.rules.map(normalizeRuleForUi) : [];
             renderTransformRules('outbound');
@@ -2104,6 +2119,9 @@
         }
         async function saveTransformConfig(kind) {
            try {
+             if (kind === 'outbound') {
+               await headersSave();
+             }
              const currentPayload = await apiCall(ADMIN_ROOT + '/transform-config', 'GET');
              const currentData = currentPayload?.data || {};
              const payload = {
@@ -2113,7 +2131,6 @@
              if (kind === 'outbound') {
                payload.outbound = {
                  enabled: true,
-                 custom_js_preprocessor: (el('outbound-custom-js')?.value || '').trim() || null,
                  rules: collectRuleDrafts('outbound'),
                };
              } else {
@@ -2285,7 +2302,7 @@
             const payload = await apiCall(ADMIN_ROOT + '/headers', 'GET');
             const names = Array.isArray(payload?.enriched_headers) ? payload.enriched_headers : [];
             if (!names.length) {
-              setHtml('headers-list', '<div>(none)</div>');
+              setHtml('headers-list', '');
             } else {
               const rows = names.map((name) =>
                 '<tr>'
@@ -2312,7 +2329,6 @@
             const headersObj = headersMultilineToObject(text);
             const entries = Object.entries(headersObj);
             if (!entries.length) {
-              setOutput('headers-output', 'Add at least one header entry.');
               return;
             }
             for (const [name, value] of entries) {
@@ -2438,16 +2454,18 @@
               '<div><b>Proxy key</b></div>'
               + '<div>Primary: ' + (proxy.primary_active ? 'active' : 'missing') + '</div>'
               + '<div>Primary created: ' + formatCreatedAt(proxy.proxy_primary_key_created_at) + '</div>'
+              + '<div>Primary expires: ' + (proxy.expiry_seconds ? formatCreatedAt(Number(proxy.proxy_primary_key_created_at || 0) + (Number(proxy.expiry_seconds) * 1000)) : 'n/a') + '</div>'
               + '<div>Secondary overlap key: ' + (proxy.secondary_active ? 'active' : 'inactive') + '</div>'
               + '<div>Secondary created: ' + formatCreatedAt(proxy.proxy_secondary_key_created_at) + '</div>'
-              + '<div>Expiry policy: ' + (proxy.expiry_seconds === null ? 'n/a' : String(proxy.expiry_seconds) + 's') + '</div>';
+              + '<div>Secondary expires: ' + ((proxy.secondary_active && proxy.expiry_seconds) ? formatCreatedAt(Number(proxy.proxy_secondary_key_created_at || 0) + (Number(proxy.expiry_seconds) * 1000)) : 'n/a') + '</div>';
             const issuerHtml =
               '<div><b>Issuer key</b></div>'
               + '<div>Primary: ' + (issuer.primary_active ? 'active' : 'missing') + '</div>'
               + '<div>Primary created: ' + formatCreatedAt(issuer.issuer_primary_key_created_at) + '</div>'
+              + '<div>Primary expires: ' + (issuer.expiry_seconds ? formatCreatedAt(Number(issuer.issuer_primary_key_created_at || 0) + (Number(issuer.expiry_seconds) * 1000)) : 'n/a') + '</div>'
               + '<div>Secondary overlap key: ' + (issuer.secondary_active ? 'active' : 'inactive') + '</div>'
               + '<div>Secondary created: ' + formatCreatedAt(issuer.issuer_secondary_key_created_at) + '</div>'
-              + '<div>Expiry policy: ' + (issuer.expiry_seconds === null ? 'n/a' : String(issuer.expiry_seconds) + 's') + '</div>';
+              + '<div>Secondary expires: ' + ((issuer.secondary_active && issuer.expiry_seconds) ? formatCreatedAt(Number(issuer.issuer_secondary_key_created_at || 0) + (Number(issuer.expiry_seconds) * 1000)) : 'n/a') + '</div>';
             const inboundHtml =
               proxyHtml
               + '<hr style="margin:10px 0;border:none;border-top:1px solid #eee;" />'
@@ -2455,8 +2473,7 @@
             const adminHtml =
               '<div><b>Admin key</b></div>'
                + '<div>Primary: ' + (admin.primary_active ? 'active' : 'missing') + '</div>'
-               + '<div>Primary created: ' + formatCreatedAt(admin.admin_primary_key_created_at) + '</div>'
-               + '<div>Secondary overlap key: inactive (atomic rotation)</div>';
+               + '<div>Primary created: ' + formatCreatedAt(admin.admin_primary_key_created_at) + '</div>';
             if (el('keys-status-inbound')) setHtml('keys-status-inbound', proxyHtml);
             if (el('keys-status-admin')) setHtml('keys-status-admin', adminHtml);
             if (el('keys-status-issuer')) setHtml('keys-status-issuer', issuerHtml);
@@ -2518,21 +2535,21 @@
           if (el('kr-request-form')) {
             setHtml('kr-request-form', renderRequestForm('kr', {
               enableHttpAuthorization: true,
-              authProfileHint: 'Use a configured profile such as target.',
+              fixedKeyRotationProfile: 'target',
             }));
             bindRequestFormToggles('kr');
           }
           if (el('jwt-jwks-request-form')) {
             setHtml('jwt-jwks-request-form', renderRequestForm('jwt-jwks', {
               enableHttpAuthorization: true,
-              authProfileHint: 'Use a configured profile such as jwt_inbound.',
+              fixedKeyRotationProfile: 'jwt_inbound',
             }));
             bindRequestFormToggles('jwt-jwks');
           }
           if (el('logging-request-form')) {
             setHtml('logging-request-form', renderRequestForm('logging-req', {
               enableHttpAuthorization: true,
-              authProfileHint: 'Use a configured profile such as logging.',
+              fixedKeyRotationProfile: 'logging',
             }));
             bindRequestFormToggles('logging-req');
           }
@@ -2594,7 +2611,12 @@
           });
           el('launch-live-log-link')?.addEventListener('click', (evt) => {
             evt.preventDefault();
-            openLiveLogModal();
+            if (!currentKey) {
+              showWarning('Login required.');
+              return;
+            }
+            const streamUrl = ADMIN_ROOT + '/live-log/stream?admin_access_token=' + encodeURIComponent(currentKey);
+            window.open(streamUrl, '_blank', 'noopener,noreferrer');
           });
           el('live-log-close-btn')?.addEventListener('click', () => {
             closeLiveLogModal();
@@ -2645,10 +2667,6 @@
           el('live-log-clear-link')?.addEventListener('click', (evt) => {
             evt.preventDefault();
             if (el('live-log-output')) el('live-log-output').textContent = '';
-          });
-          el('logging-ttl-refresh-link')?.addEventListener('click', (evt) => {
-            evt.preventDefault();
-            loadLoggingStatus();
           });
           el('logging-ttl-preset')?.addEventListener('change', () => {
             setLoggingTtlCustomVisibility();
@@ -2718,7 +2736,6 @@
             markDirty('overview');
           });
           el('proxy-name')?.addEventListener('blur', () => configValidate(true));
-           el('headers-save-btn')?.addEventListener('click', headersSave);
           el('headers-list')?.addEventListener('click', (evt) => {
             const target = evt.target?.closest ? evt.target.closest('.delete-header-btn') : null;
             if (!target) return;
@@ -2791,6 +2808,20 @@
           }
           el('outbound-rules-list')?.addEventListener('input', handleRuleInputValidation);
           el('inbound-rules-list')?.addEventListener('input', handleRuleInputValidation);
+          el('inbound-network-controls-enabled')?.addEventListener('change', async () => {
+            const enabled = !!el('inbound-network-controls-enabled')?.checked;
+            if (enabled) {
+              const ok = await promptNetworkControlsEnable();
+              if (!ok) {
+                if (el('inbound-network-controls-enabled')) el('inbound-network-controls-enabled').checked = false;
+                setRuntimeNetworkControlsEditable(false);
+                return;
+              }
+              setRuntimeNetworkControlsEditable(true);
+              return;
+            }
+            setRuntimeNetworkControlsEditable(false);
+          });
            el('footer-save-outbound-transform')?.addEventListener('click', () => saveTransformConfig('outbound'));
            el('footer-save-inbound-transform')?.addEventListener('click', () => saveTransformConfig('inbound'));
            el('delete-header-cancel-btn')?.addEventListener('click', () => {
