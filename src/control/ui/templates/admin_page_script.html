@@ -183,8 +183,8 @@
                 + '<select id="' + prefix + '-auth-type" style="width:100%;max-width:260px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;">'
                 + '<option value="none">none</option>'
                 + '<option value="static">static</option>'
-                + '<option value="key_rotation">Generic TTL Rotation</option>'
                 + '<option value="oauth_client_credentials">OAuth</option>'
+                + '<option value="key_rotation">Generic TTL Rotation</option>'
                 + '</select>'
                 + '<div id="' + prefix + '-auth-static-wrap" style="display:none;">'
                 + '<label for="' + prefix + '-auth-header-name" style="display:block;margin:10px 0 4px;">Auth header name</label>'
@@ -217,6 +217,22 @@
               (mode === 'key_rotation' || mode === 'oauth_client_credentials') ? 'block' : 'none';
           }
         }
+        function applyAuthTypePreset(prefix, previousMode, nextMode) {
+          const prev = String(previousMode || 'none');
+          const next = String(nextMode || 'none');
+          if (prev === next) return;
+          if (next === 'oauth_client_credentials') {
+            if (el(prefix + '-verb')) el(prefix + '-verb').value = 'POST';
+            if (el(prefix + '-headers')) {
+              const existing = String(el(prefix + '-headers').value || '').trim();
+              if (!existing) el(prefix + '-headers').value = 'Content-Type: application/x-www-form-urlencoded';
+            }
+            if (el(prefix + '-body')) {
+              const existingBody = String(el(prefix + '-body').value || '').trim();
+              if (!existingBody) el(prefix + '-body').value = 'grant_type=client_credentials';
+            }
+          }
+        }
         function bindRequestFormToggles(prefix) {
           const headersToggle = el(prefix + '-headers-toggle');
           const headersWrap = el(prefix + '-headers-wrap');
@@ -242,8 +258,13 @@
           bind(bodyToggle, bodyWrap, null);
           const authType = el(prefix + '-auth-type');
           if (authType) {
+            authType.dataset.previousAuthType = String(authType.value || 'none');
             authType.addEventListener('change', () => {
-              setRequestAuthMode(prefix, authType.value || 'none');
+              const previous = String(authType.dataset.previousAuthType || 'none');
+              const current = String(authType.value || 'none');
+              applyAuthTypePreset(prefix, previous, current);
+              setRequestAuthMode(prefix, current);
+              authType.dataset.previousAuthType = current;
             });
             setRequestAuthMode(prefix, authType.value || 'none');
           }
@@ -424,6 +445,9 @@
             authType = 'oauth_client_credentials';
           }
           setRequestAuthMode(prefix, authType);
+          if (el(prefix + '-auth-type')) {
+            el(prefix + '-auth-type').dataset.previousAuthType = String(authType || 'none');
+          }
           if (el(prefix + '-auth-header-name')) {
             const staticHeaders = auth?.static?.headers && typeof auth.static.headers === 'object' ? auth.static.headers : {};
             const first = Object.entries(staticHeaders)[0] || [];
@@ -1731,7 +1755,9 @@
             if (el('target-auth-ts-format')) el('target-auth-ts-format').value = targetTsFormat || 'epoch_ms';
              setOutboundAuthEnabled(!!d.enabled);
              if (el('kr-strategy')) {
-               el('kr-strategy').value = d.strategy === 'oauth_client_credentials' ? 'oauth_client_credentials' : 'json_ttl';
+               if (!d.enabled) el('kr-strategy').value = 'none';
+               else if (String(d?.request?.authorization?.type || '') === 'static') el('kr-strategy').value = 'static';
+               else el('kr-strategy').value = d.strategy === 'oauth_client_credentials' ? 'oauth_client_credentials' : 'json_ttl';
              }
              if (el('kr-request-form')) setRequestForm('kr', d.request || {});
              if (el('kr-key-path')) el('kr-key-path').value = String(d.key_path || '');
@@ -1743,6 +1769,7 @@
             if (el('kr-proxy-expiry')) el('kr-proxy-expiry').value = toProxyExpirySelectValue(d.proxy_expiry_seconds);
             if (el('kr-issuer-expiry')) el('kr-issuer-expiry').value = d.issuer_expiry_seconds == null ? '' : String(d.issuer_expiry_seconds);
             if (el('kr-output')) el('kr-output').textContent = '';
+            syncKrStrategyToRequestAuth();
             await loadJwtConfig();
           } catch (e) {
             setOutput('kr-output', String(e.message || e));
@@ -1750,8 +1777,8 @@
         }
         async function keyRotationSave(dirtyTabToClear) {
           try {
-            const outboundAuthEnabled = !!el('outbound-auth-enabled')?.checked;
             const selectedStrategy = String(el('kr-strategy')?.value || 'json_ttl').trim();
+            const outboundAuthEnabled = selectedStrategy !== 'none' && !!el('outbound-auth-enabled')?.checked;
             const normalizedStrategy = selectedStrategy === 'oauth_client_credentials' ? 'oauth_client_credentials' : 'json_ttl';
              const req = readRequestForm('kr');
              await persistRequestAuthSecret('kr');
@@ -1885,6 +1912,25 @@
           const on = !!enabled;
           if (el('outbound-auth-enabled')) el('outbound-auth-enabled').checked = on;
           if (el('outbound-auth-fields')) el('outbound-auth-fields').style.display = on ? 'block' : 'none';
+        }
+        function syncKrStrategyToRequestAuth() {
+          const strategy = String(el('kr-strategy')?.value || 'none').trim();
+          if (strategy === 'none') {
+            setOutboundAuthEnabled(false);
+            setRequestAuthMode('kr', 'none');
+            return;
+          }
+          setOutboundAuthEnabled(true);
+          if (strategy === 'static') {
+            setRequestAuthMode('kr', 'static');
+            return;
+          }
+          if (strategy === 'oauth_client_credentials') {
+            applyAuthTypePreset('kr', String(el('kr-auth-type')?.value || 'none'), 'oauth_client_credentials');
+            setRequestAuthMode('kr', 'oauth_client_credentials');
+            return;
+          }
+          setRequestAuthMode('kr', 'key_rotation');
         }
         function updateInboundHeaderFilteringHelp(modeValue) {
           const mode = String(modeValue || 'blacklist');
@@ -2779,6 +2825,9 @@
            el('outbound-auth-enabled')?.addEventListener('change', () => {
              setOutboundAuthEnabled(!!el('outbound-auth-enabled')?.checked);
            });
+          el('kr-strategy')?.addEventListener('change', () => {
+            syncKrStrategyToRequestAuth();
+          });
           el('jwt-enabled')?.addEventListener('change', () => {
             setJwtEnabled(!!el('jwt-enabled')?.checked);
           });
