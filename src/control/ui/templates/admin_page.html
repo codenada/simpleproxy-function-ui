@@ -29,14 +29,13 @@
            <div style="margin-top:6px;font-size:12px;color:#64748b;font-weight:700;text-transform:uppercase;">Observability &amp; Testing</div>
            <button type="button" class="tab-btn tab-child" data-tab="debug">Logging</button>
            <button type="button" class="tab-btn tab-child" data-tab="sandbox">API Sandbox</button>
-           <div style="margin-top:6px;font-size:12px;color:#64748b;font-weight:700;text-transform:uppercase;">Admin</div>
-           <button type="button" class="tab-btn tab-child" data-tab="admin-auth">Admin Auth</button>
-           <div style="margin-top:6px;font-size:12px;color:#64748b;font-weight:700;text-transform:uppercase;">Outbound</div>
-           <button type="button" class="tab-btn tab-child" data-tab="outbound-auth">Outbound Auth</button>
-           <button type="button" class="tab-btn tab-child" data-tab="outbound-transform">Outbound Transformations</button>
-           <div style="margin-top:6px;font-size:12px;color:#64748b;font-weight:700;text-transform:uppercase;">Inbound</div>
-           <button type="button" class="tab-btn tab-child" data-tab="inbound-auth">Inbound Auth</button>
-           <button type="button" class="tab-btn tab-child" data-tab="inbound-transform">Inbound Transformations</button>
+          <div style="margin-top:6px;font-size:12px;color:#64748b;font-weight:700;text-transform:uppercase;">Transformations</div>
+          <button type="button" class="tab-btn tab-child" data-tab="inbound-transform">Request Transformations</button>
+          <button type="button" class="tab-btn tab-child" data-tab="outbound-transform">Response Transformations</button>
+          <div style="margin-top:6px;font-size:12px;color:#64748b;font-weight:700;text-transform:uppercase;">Authorization</div>
+          <button type="button" class="tab-btn tab-child" data-tab="inbound-auth">Source Auth</button>
+          <button type="button" class="tab-btn tab-child" data-tab="outbound-auth">Target Auth</button>
+          <button type="button" class="tab-btn tab-child" data-tab="admin-auth">Admin Auth</button>
            <div style="margin-top:6px;font-size:12px;color:#64748b;font-weight:700;text-transform:uppercase;">Advanced</div>
            <button type="button" class="tab-btn tab-child" data-tab="inbound-traffic-controls">Network Controls</button>
            <button type="button" class="tab-btn tab-child" data-tab="config">YAML Configuration</button>
@@ -103,7 +102,7 @@
           </div>
         </div>
         <div id="tab-outbound-auth" class="tab-panel" style="display:none;">
-           <p><b>Outbound Auth</b></p>
+           <p><b>Target Auth</b></p>
            <label style="display:flex;gap:8px;align-items:center;margin:8px 0 10px;">
              <input id="outbound-auth-enabled" type="checkbox" />
              <span>Enabled</span>
@@ -150,13 +149,13 @@
           </div>
         </div>
         <div id="tab-outbound-transform" class="tab-panel" style="display:none;">
-           <p><b>Outbound Transformations</b></p>
+           <p><b>Response Transformations</b></p>
+           <p style="margin:10px 0 6px;"><b>Transformation Rules</b></p>
            <label style="display:flex;gap:8px;align-items:center;margin:8px 0 10px;">
              <input id="outbound-transform-enabled" type="checkbox" />
-             <span>Enable outbound transformations</span>
+             <span>Enable response transformations</span>
            </label>
            <div id="outbound-transform-fields">
-           <p style="margin:10px 0 6px;"><b>Rules</b></p>
            <div id="outbound-rules-list" style="display:flex;flex-direction:column;gap:10px;"></div>
            <div style="margin-top:8px;">
              <button type="button" id="outbound-add-rule-btn">Add rule</button>
@@ -169,7 +168,7 @@
           </div>
         </div>
         <div id="tab-inbound-auth" class="tab-panel" style="display:none;">
-           <p><b>Inbound Auth</b></p>
+           <p><b>Source Auth</b></p>
            <label for="kr-proxy-expiry" style="display:block;margin:10px 0 4px;">Proxy Key Expiration</label>
            <select id="kr-proxy-expiry" style="width:100%;max-width:240px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;">
              <option value="">Never expires</option>
@@ -236,7 +235,7 @@
                <span>Enable</span>
              </label>
              <div id="jwt-outbound-fields" style="display:none;">
-               <div style="font-size:12px;color:#64748b;margin-top:4px;">Outbound signing uses the issuer key (HS256).</div>
+               <div style="font-size:12px;color:#64748b;margin-top:4px;">Target signing uses the issuer key (HS256).</div>
                <label for="jwt-outbound-header" style="display:block;margin:8px 0 4px;">JWT header name</label>
                <input id="jwt-outbound-header" type="text" placeholder="Authorization"
                  style="width:100%;max-width:420px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />
@@ -288,7 +287,7 @@
           </div>
         </div>
         <div id="tab-inbound-traffic-controls" class="tab-panel" style="display:none;">
-          <p><b>Inbound Network Controls</b></p>
+          <p><b>Source Network Controls</b></p>
           <div style="padding:10px 12px;border:1px solid #fecaca;background:#fff1f2;color:#991b1b;border-radius:8px;line-height:1.6;">
             Warning: Prefer external network controls; use in-app controls only when edge/network policy is unavailable.
           </div>
@@ -301,16 +300,16 @@
             <div id="inbound-runtime-controls-fields">
               <label style="display:flex;gap:8px;align-items:center;margin:8px 0 6px;">
                 <input id="inbound-network-ip-filter-enabled" type="checkbox" />
-                <span>Inbound IP Filter</span>
+                <span>Source IP Filter</span>
               </label>
-              <label for="inbound-network-allowed-cidrs" style="display:block;margin:8px 0 4px;">Inbound Allowed CIDRs (comma-separated)</label>
+              <label for="inbound-network-allowed-cidrs" style="display:block;margin:8px 0 4px;">Source Allowed CIDRs (comma-separated)</label>
               <input id="inbound-network-allowed-cidrs" type="text" placeholder="0.0.0.0/0, ::/0"
                 style="width:100%;max-width:620px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />
               <label style="display:flex;gap:8px;align-items:center;margin:10px 0 6px;">
                 <input id="inbound-network-rpm-enabled" type="checkbox" />
-                <span>Inbound Request Rate Limit</span>
+                <span>Source Request Rate Limit</span>
               </label>
-              <label for="inbound-network-rpm-limit" style="display:block;margin:8px 0 4px;">Inbound Requests Per Min</label>
+              <label for="inbound-network-rpm-limit" style="display:block;margin:8px 0 4px;">Source Requests Per Min</label>
               <input id="inbound-network-rpm-limit" type="number" min="1" step="1"
                 style="width:100%;max-width:220px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />
             </div>
@@ -326,13 +325,13 @@
           </div>
         </div>
         <div id="tab-inbound-transform" class="tab-panel" style="display:none;">
-           <p><b>Inbound Transformations</b></p>
+           <p><b>Request Transformations</b></p>
+           <p style="margin:10px 0 6px;"><b>Transformation Rules</b></p>
            <label style="display:flex;gap:8px;align-items:center;margin:8px 0 10px;">
              <input id="inbound-transform-enabled" type="checkbox" />
-             <span>Enable inbound transformations</span>
+             <span>Enable request transformations</span>
            </label>
            <div id="inbound-transform-fields">
-           <p style="margin:10px 0 6px;"><b>Transformation Rules</b></p>
            <div id="inbound-rules-list" style="display:flex;flex-direction:column;gap:10px;"></div>
            <div style="margin-top:8px;">
              <button type="button" id="inbound-add-rule-btn">Add rule</button>
