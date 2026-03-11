@@ -16,9 +16,9 @@
        </div>
        <div id="admin-shell" style="display:none;">
          <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px;">
-           <img src="{{favicon_data_url}}" width="48" height="48" alt="API Transform Proxy icon" />
+           <img src="{{favicon_data_url}}" width="48" height="48" alt="SimpleProxy API Connector icon" />
            <div>
-             <h2 id="proxy-title" style="margin:0;font-size:20px;">API Transform Proxy</h2>
+             <h2 id="proxy-title" style="margin:0;font-size:20px;">SimpleProxy API Connector</h2>
              <h3 id="proxy-subtitle" style="margin:4px 0 0 0;font-size:14px;color:#475569;font-weight:600;"></h3>
            </div>
          </div>
@@ -28,7 +28,6 @@
            <button type="button" class="tab-btn" data-tab="overview">General</button>
            <div style="margin-top:6px;font-size:12px;color:#64748b;font-weight:700;text-transform:uppercase;">Observability &amp; Testing</div>
            <button type="button" class="tab-btn tab-child" data-tab="debug">Logging</button>
-           <button type="button" class="tab-btn tab-child" data-tab="live-log">Live Log</button>
            <button type="button" class="tab-btn tab-child" data-tab="sandbox">API Sandbox</button>
            <div style="margin-top:6px;font-size:12px;color:#64748b;font-weight:700;text-transform:uppercase;">Admin</div>
            <button type="button" class="tab-btn tab-child" data-tab="admin-auth">Admin Auth</button>
@@ -37,9 +36,10 @@
            <button type="button" class="tab-btn tab-child" data-tab="outbound-transform">Outbound Transformations</button>
            <div style="margin-top:6px;font-size:12px;color:#64748b;font-weight:700;text-transform:uppercase;">Inbound</div>
            <button type="button" class="tab-btn tab-child" data-tab="inbound-auth">Inbound Auth</button>
+           <button type="button" class="tab-btn tab-child" data-tab="inbound-transform">Inbound Transformations</button>
+           <div style="margin-top:6px;font-size:12px;color:#64748b;font-weight:700;text-transform:uppercase;">Advanced</div>
            <button type="button" class="tab-btn tab-child" data-tab="inbound-traffic-controls">Network Controls</button>
-           <button type="button" class="tab-btn tab-child" data-tab="inbound-transform">Header Filtering</button>
-           <button type="button" class="tab-btn" data-tab="config">Config</button>
+           <button type="button" class="tab-btn tab-child" data-tab="config">YAML Configuration</button>
            <a href="#" id="logout-link" style="margin-top:14px;font-size:14px;color:#0f172a;text-decoration:underline;">Log out</a>
          </div>
          <div style="flex:1;min-width:0;">
@@ -54,13 +54,24 @@
         <div id="tab-debug" class="tab-panel" style="display:none;">
            <p><b>Logging controls</b></p>
            <div id="logging-status" style="padding:12px;border:1px solid #ddd;border-radius:8px;line-height:1.6;margin:10px 0;">Loading logging status...</div>
-           <p style="margin-top:6px;margin-bottom:4px;">Logging expires in (seconds): <span id="logging-ttl-remaining-2">0</span> <a href="#" id="logging-ttl-refresh-link">refresh</a></p>
-           <label for="logging-ttl-seconds" style="display:block;margin:8px 0 4px;">Logging TTL</label>
-           <input id="logging-ttl-seconds" type="number" min="1" step="1" value="3600"
-             style="width:100%;max-width:220px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />
+           <p style="margin-top:6px;margin-bottom:4px;">Current logging session expires at: <span id="logging-session-expires-at">n/a</span> <a href="#" id="logging-ttl-refresh-link">refresh</a></p>
+           <label for="logging-ttl-preset" style="display:block;margin:8px 0 4px;">Logging TTL</label>
+           <select id="logging-ttl-preset" style="width:100%;max-width:260px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;">
+             <option value="1h">1 hour</option>
+             <option value="6h">6 hours</option>
+             <option value="24h">24 hours</option>
+             <option value="7d">7 days</option>
+             <option value="custom">custom</option>
+           </select>
+           <div id="logging-ttl-custom-wrap" style="display:none;margin-top:8px;">
+             <label for="logging-ttl-custom-hours" style="display:block;margin:0 0 4px;">Custom TTL (hours)</label>
+             <input id="logging-ttl-custom-hours" type="number" min="1" step="1" placeholder="12"
+               style="width:100%;max-width:220px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />
+           </div>
            <p style="margin-top:12px;margin-bottom:6px;">Last Log</p>
            <pre id="debug-output" style="margin-top:10px;padding:12px;border:1px solid #ddd;border-radius:8px;white-space:pre-wrap;word-break:break-word;max-height:320px;overflow:auto;">Debug output appears here.</pre>
            <p style="margin-top:10px;"><a href="#" id="debug-refresh-trace-link">Refresh</a></p>
+           <p style="margin-top:8px;"><a href="#" id="launch-live-log-link" style="color:#64748b;pointer-events:none;opacity:0.6;text-decoration:underline;">Launch live logging</a></p>
            <p style="margin-top:16px;"><b>External Logging Configuration</b></p>
            <label style="display:flex;gap:8px;align-items:center;margin:8px 0 6px;">
              <input id="logging-config-enabled" type="checkbox" />
@@ -79,18 +90,8 @@
             <button type="button" id="footer-save-logging" style="background:#0f172a;color:#fff;border:1px solid #0f172a;padding:8px 14px;border-radius:8px;">Save</button>
           </div>
         </div>
-        <div id="tab-live-log" class="tab-panel" style="display:none;">
-          <p><b>Live Log</b></p>
-          <div id="live-log-status" style="padding:10px 12px;border:1px solid #ddd;border-radius:8px;line-height:1.5;margin:10px 0;">Disconnected.</div>
-          <p style="margin:8px 0 10px;">
-            <a href="#" id="live-log-reconnect-link">Reconnect</a>
-            <span style="padding:0 8px;color:#94a3b8;">|</span>
-            <a href="#" id="live-log-clear-link">Clear</a>
-          </p>
-          <pre id="live-log-output" style="margin-top:0;padding:12px;border:1px solid #ddd;border-radius:8px;white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;"></pre>
-        </div>
         <div id="tab-config" class="tab-panel" style="display:none;">
-           <p><b>YAML config</b></p>
+           <p><b>YAML Configuration</b></p>
            <textarea id="config-yaml" rows="14"
              style="width:100%;max-width:740px;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;"></textarea>
            <p id="config-validation-error" style="display:none;margin:6px 0 0;color:#b91c1c;font-size:14px;"></p>
@@ -153,22 +154,9 @@
         </div>
         <div id="tab-outbound-transform" class="tab-panel" style="display:none;">
            <p><b>Outbound Transformations</b></p>
-           <label style="display:flex;gap:8px;align-items:center;margin:8px 0 12px;">
-             <input id="transform-global-enabled-outbound" type="checkbox" />
-             <span>Enable transform rules globally</span>
-           </label>
            <label for="outbound-custom-js" style="display:block;margin:8px 0 4px;">Custom JS Preprocessor</label>
            <input id="outbound-custom-js" type="text" placeholder="hook name"
              style="width:100%;max-width:420px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />
-           <label for="outbound-default-expr" style="display:block;margin:8px 0 4px;">Default JSONata Expression</label>
-           <textarea id="outbound-default-expr" rows="4"
-             style="width:100%;max-width:740px;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;"></textarea>
-           <label for="outbound-fallback" style="display:block;margin:8px 0 4px;">Fallback</label>
-           <select id="outbound-fallback" style="width:100%;max-width:280px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;">
-             <option value="passthrough">passthrough</option>
-             <option value="transform_default">transform_default</option>
-             <option value="error">error</option>
-           </select>
            <p style="margin:10px 0 6px;"><b>Rules</b></p>
            <div id="outbound-rules-list" style="display:flex;flex-direction:column;gap:10px;"></div>
            <div style="margin-top:8px;">
@@ -187,9 +175,15 @@
         </div>
         <div id="tab-inbound-auth" class="tab-panel" style="display:none;">
            <p><b>Inbound Auth</b></p>
-           <label for="kr-proxy-expiry" style="display:block;margin:10px 0 4px;">Proxy Key Expiry Seconds</label>
-           <input id="kr-proxy-expiry" type="text" placeholder="n/a"
-             style="width:100%;max-width:220px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />
+           <label for="kr-proxy-expiry" style="display:block;margin:10px 0 4px;">Proxy Key Expiration</label>
+           <select id="kr-proxy-expiry" style="width:100%;max-width:240px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;">
+             <option value="">Never expires</option>
+             <option value="3600">1 hour</option>
+             <option value="86400">24 hours</option>
+             <option value="604800">7 days</option>
+             <option value="2592000">30 days</option>
+             <option value="31622400">366 days</option>
+           </select>
            <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;"></div>
            <div style="display:flex;align-items:center;gap:8px;margin:10px 0 6px;">
              <b>Proxy Key Status</b>
@@ -288,13 +282,10 @@
         </div>
         <div id="tab-admin-auth" class="tab-panel" style="display:none;">
            <p><b>Admin Auth</b></p>
-           <label for="kr-admin-expiry" style="display:block;margin:10px 0 4px;">Admin Key Expiry Seconds</label>
-           <input id="kr-admin-expiry" type="text" placeholder="n/a"
-             style="width:100%;max-width:220px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />
            <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;"></div>
            <div style="display:flex;align-items:center;gap:8px;margin:10px 0 6px;">
              <b>Admin Key Status</b>
-             <a href="#" id="keys-refresh-link-admin">refresh</a>
+             <a href="#" id="keys-refresh-link-admin">Check latest status</a>
            </div>
            <div id="keys-status-admin" style="padding:12px;border:1px solid #ddd;border-radius:8px;line-height:1.6;margin-bottom:10px;">Admin key status will appear here.</div>
            <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -310,14 +301,30 @@
             Warning: Prefer external network controls; use in-app controls only when edge/network policy is unavailable.
           </div>
           <div style="margin-top:12px;padding:10px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;line-height:1.8;">
-            <p style="margin:0 0 8px 0;"><b>Runtime Controls</b></p>
-            <div><b>Inbound IP Filter:</b> <span id="inbound-network-ip-filter-enabled-text">Disabled</span></div>
-            <div><b>Inbound Allowed CIDRs:</b> <span id="inbound-network-allowed-cidrs-text">n/a</span></div>
-            <div><b>Inbound Request Rate Limit:</b> <span id="inbound-network-rpm-enabled-text">Disabled</span></div>
-            <div><b>Inbound Requests Per Min:</b> <span id="inbound-network-rpm-limit-text">n/a</span></div>
+            <p style="margin:0 0 8px 0;"><b>Runtime Network Controls</b></p>
+            <label style="display:flex;gap:8px;align-items:center;margin:8px 0 10px;">
+              <input id="inbound-network-controls-enabled" type="checkbox" />
+              <span>Enable network controls</span>
+            </label>
+            <div id="inbound-runtime-controls-fields">
+              <label style="display:flex;gap:8px;align-items:center;margin:8px 0 6px;">
+                <input id="inbound-network-ip-filter-enabled" type="checkbox" />
+                <span>Inbound IP Filter</span>
+              </label>
+              <label for="inbound-network-allowed-cidrs" style="display:block;margin:8px 0 4px;">Inbound Allowed CIDRs (comma-separated)</label>
+              <input id="inbound-network-allowed-cidrs" type="text" placeholder="0.0.0.0/0, ::/0"
+                style="width:100%;max-width:620px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />
+              <label style="display:flex;gap:8px;align-items:center;margin:10px 0 6px;">
+                <input id="inbound-network-rpm-enabled" type="checkbox" />
+                <span>Inbound Request Rate Limit</span>
+              </label>
+              <label for="inbound-network-rpm-limit" style="display:block;margin:8px 0 4px;">Inbound Requests Per Min</label>
+              <input id="inbound-network-rpm-limit" type="number" min="1" step="1"
+                style="width:100%;max-width:220px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />
+            </div>
           </div>
           <div style="margin-top:12px;padding:10px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;line-height:1.8;">
-            <p style="margin:0 0 8px 0;"><b>Admin Controls (Read Only)</b></p>
+            <p style="margin:0 0 8px 0;"><b>Admin Network Controls (Read Only)</b></p>
             <div><b>Login Page Rate Limit:</b> <span id="admin-control-login-enabled-text">Disabled</span></div>
             <div><b>Login Page Requests Per Min:</b> <span id="admin-control-login-rpm-text">n/a</span></div>
             <div><b>Admin Token Endpoint Rate Limit:</b> <span id="admin-control-token-enabled-text">Disabled</span></div>
@@ -327,20 +334,7 @@
           </div>
         </div>
         <div id="tab-inbound-transform" class="tab-panel" style="display:none;">
-           <p><b>Header Filtering</b></p>
-           <label style="display:flex;gap:8px;align-items:center;margin:8px 0 12px;">
-             <input id="transform-global-enabled-inbound" type="checkbox" />
-             <span>Enable transform rules globally</span>
-           </label>
-           <label for="inbound-default-expr" style="display:block;margin:8px 0 4px;">Global JSONata Expression</label>
-           <textarea id="inbound-default-expr" rows="4"
-             style="width:100%;max-width:740px;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;"></textarea>
-           <label for="inbound-fallback" style="display:block;margin:8px 0 4px;">Fallback</label>
-           <select id="inbound-fallback" style="width:100%;max-width:280px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;">
-             <option value="passthrough">passthrough</option>
-             <option value="transform_default">transform_default</option>
-             <option value="error">error</option>
-           </select>
+           <p><b>Inbound Transformations</b></p>
            <p style="margin:10px 0 6px;"><b>Rules</b></p>
            <div id="inbound-rules-list" style="display:flex;flex-direction:column;gap:10px;"></div>
            <div style="margin-top:8px;">
@@ -389,11 +383,10 @@
            <p style="margin-top:10px;"><b>Response</b></p>
            <pre id="sandbox-response" style="margin-top:6px;padding:12px;border:1px solid #ddd;border-radius:8px;white-space:pre-wrap;word-break:break-word;">Response appears here.</pre>
          </div>
-         <div id="shared-tab-footer" style="margin-top:14px;border-top:1px solid #e2e8f0;padding-top:10px;display:flex;justify-content:flex-end;gap:12px;align-items:center;">
-           <button type="button" id="shared-revert-btn" disabled
-             style="background:#fff;color:#dc2626;border:1px solid #dc2626;padding:8px 14px;border-radius:8px;cursor:not-allowed;opacity:0.5;">Revert</button>
+         <div id="shared-tab-footer" style="margin-top:14px;border-top:1px solid #e2e8f0;padding-top:10px;display:flex;justify-content:flex-start;gap:12px;align-items:center;">
            <button type="button" id="shared-save-btn" disabled
              style="background:#2563eb;color:#fff;border:1px solid #2563eb;padding:8px 14px;border-radius:8px;cursor:not-allowed;opacity:0.5;">Save</button>
+           <a href="#" id="shared-revert-link" style="color:#dc2626;text-decoration:underline;pointer-events:none;opacity:0.5;">Discard Changes</a>
          </div>
          </div>
          </div>
@@ -414,5 +407,54 @@
            <button type="button" id="unsaved-discard-btn" style="background:#fff;color:#dc2626;border:1px solid #dc2626;padding:8px 12px;border-radius:8px;">Continue Without Saving</button>
            <button type="button" id="unsaved-cancel-btn">Cancel</button>
          </div>
+       </dialog>
+       <dialog id="network-controls-warning-modal" style="max-width:560px;border:1px solid #e2e8f0;border-radius:10px;padding:16px;">
+         <p style="margin-top:0;"><b>Enable network controls?</b></p>
+         <p style="margin:8px 0 12px 0;">Cloud network controls are generally safer and faster; use in-app controls only when external controls are unavailable.</p>
+         <div style="display:flex;gap:8px;justify-content:flex-end;">
+           <button type="button" id="network-controls-warning-continue-btn">Continue</button>
+           <button type="button" id="network-controls-warning-cancel-btn">Cancel</button>
+         </div>
+       </dialog>
+       <dialog id="admin-rotate-confirm-modal" style="max-width:620px;border:1px solid #e2e8f0;border-radius:10px;padding:16px;">
+         <p style="margin-top:0;"><b>Rotate admin key?</b></p>
+         <p style="margin:8px 0 12px 0;">Are you sure? Existing admin key will be shown one time and existing expire immediately.</p>
+         <div style="display:flex;gap:8px;justify-content:flex-end;">
+           <button type="button" id="admin-rotate-confirm-cancel-btn">Cancel</button>
+           <button type="button" id="admin-rotate-confirm-continue-btn" style="background:#2563eb;color:#fff;border:1px solid #2563eb;padding:8px 12px;border-radius:8px;">Continue</button>
+         </div>
+       </dialog>
+       <dialog id="admin-rotate-result-modal" style="max-width:700px;width:92vw;border:1px solid #e2e8f0;border-radius:10px;padding:16px;">
+         <p style="margin-top:0;"><b>New admin key issued</b></p>
+         <p style="margin:8px 0 10px 0;">The old key is no longer valid. This key will not be shown again. Please copy and save.</p>
+         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+           <input id="admin-rotate-new-key" type="password" readonly
+             style="width:100%;max-width:560px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc;" />
+           <a href="#" id="admin-rotate-new-key-toggle" style="font-size:12px;text-decoration:underline;">show</a>
+           <button type="button" id="admin-rotate-new-key-copy-btn">Copy</button>
+         </div>
+         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;">
+           <button type="button" id="admin-rotate-result-close-btn">Close</button>
+         </div>
+       </dialog>
+       <dialog id="live-log-modal" style="max-width:820px;width:90vw;border:1px solid #e2e8f0;border-radius:10px;padding:16px;">
+         <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+           <p style="margin:0;"><b>Live Log</b></p>
+           <button type="button" id="live-log-close-btn">Close</button>
+         </div>
+         <div id="live-log-status" style="padding:10px 12px;border:1px solid #ddd;border-radius:8px;line-height:1.5;margin:10px 0;">Disconnected.</div>
+         <p style="margin:8px 0 10px;">
+           <a href="#" id="live-log-reconnect-link">Reconnect</a>
+           <span style="padding:0 8px;color:#94a3b8;">|</span>
+           <a href="#" id="live-log-clear-link">Clear</a>
+         </p>
+         <pre id="live-log-output" style="margin-top:0;padding:12px;border:1px solid #ddd;border-radius:8px;white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;"></pre>
+       </dialog>
+       <dialog id="api-error-modal" style="max-width:820px;width:92vw;border:1px solid #e2e8f0;border-radius:10px;padding:16px;">
+         <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+           <p style="margin:0;"><b>API Request Error</b></p>
+           <button type="button" id="api-error-close-btn">Close</button>
+         </div>
+         <pre id="api-error-output" style="margin-top:10px;padding:12px;border:1px solid #ddd;border-radius:8px;white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;"></pre>
        </dialog>
 {{admin_page_script_html}}

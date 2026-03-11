@@ -46,7 +46,11 @@ function createControlConfigHandlers(deps) {
   }
 
   async function readNormalizedConfigRequest(request, env) {
-    const maxReq = getEnvInt(env, "MAX_REQ_BYTES", defaults.MAX_REQ_BYTES);
+    const maxReq = getEnvInt(
+      env,
+      "MAX_CONFIG_BYTES",
+      defaults.MAX_CONFIG_BYTES || defaults.MAX_REQ_BYTES
+    );
     return readConfigInputByContentType(request, maxReq);
   }
 
@@ -144,9 +148,6 @@ function createControlConfigHandlers(deps) {
     if (matchedRule) {
       expression = matchedRule.expr;
       source = `rule:${matchedRule.name}`;
-    } else if (targetResponseSection.fallback === "transform_default" && targetResponseSection.defaultExpr) {
-      expression = targetResponseSection.defaultExpr;
-      source = "defaultExpr";
     }
 
     let output = null;
@@ -169,7 +170,6 @@ function createControlConfigHandlers(deps) {
       data: {
         matched_rule: matchedRule ? matchedRule.name : null,
         expression_source: source,
-        fallback_behavior: targetResponseSection.fallback,
         output,
         trace,
       },
@@ -195,7 +195,6 @@ function createControlConfigHandlers(deps) {
         retry_once_on_401: !!section?.trigger?.retry_once_on_401,
         proxy_expiry_seconds: config?.apiKeyPolicy?.proxyExpirySeconds ?? null,
         issuer_expiry_seconds: config?.apiKeyPolicy?.issuerExpirySeconds ?? null,
-        admin_expiry_seconds: config?.apiKeyPolicy?.adminExpirySeconds ?? null,
       },
       meta: {},
     });
@@ -234,7 +233,6 @@ function createControlConfigHandlers(deps) {
       apiKeyPolicy: {
         proxyExpirySeconds: toNullablePositiveInt(body?.proxy_expiry_seconds, "proxy_expiry_seconds"),
         issuerExpirySeconds: toNullablePositiveInt(body?.issuer_expiry_seconds, "issuer_expiry_seconds"),
-        adminExpirySeconds: toNullablePositiveInt(body?.admin_expiry_seconds, "admin_expiry_seconds"),
       },
       targetCredentialRotation: {
         enabled: !!body?.enabled,
@@ -302,7 +300,6 @@ function createControlConfigHandlers(deps) {
     return jsonResponse(200, {
       ok: true,
       data: {
-        enabled: transform.enabled !== false,
         source_request: transform.source_request || DEFAULT_CONFIG_V1.transform.source_request,
         target_response: transform.target_response || DEFAULT_CONFIG_V1.transform.target_response,
       },
@@ -330,14 +327,11 @@ function createControlConfigHandlers(deps) {
     const next = {
       ...existing,
       transform: {
-        enabled: body?.enabled === undefined ? currentTransform.enabled !== false : !!body.enabled,
         source_request: {
           enabled: sourceRequestIn?.enabled === undefined ? !!currentTransform?.source_request?.enabled : !!sourceRequestIn.enabled,
           custom_js_preprocessor: sourceRequestIn?.custom_js_preprocessor === undefined
             ? (currentTransform?.source_request?.custom_js_preprocessor ?? null)
             : (sourceRequestIn.custom_js_preprocessor === null ? null : String(sourceRequestIn.custom_js_preprocessor || "").trim() || null),
-          defaultExpr: String(sourceRequestIn?.defaultExpr ?? currentTransform?.source_request?.defaultExpr ?? ""),
-          fallback: String(sourceRequestIn?.fallback ?? currentTransform?.source_request?.fallback ?? "passthrough"),
           rules: sourceRequestRules,
         },
         target_response: {
@@ -345,8 +339,6 @@ function createControlConfigHandlers(deps) {
           custom_js_preprocessor: targetResponseIn?.custom_js_preprocessor === undefined
             ? (currentTransform?.target_response?.custom_js_preprocessor ?? null)
             : (targetResponseIn.custom_js_preprocessor === null ? null : String(targetResponseIn.custom_js_preprocessor || "").trim() || null),
-          defaultExpr: String(targetResponseIn?.defaultExpr ?? currentTransform?.target_response?.defaultExpr ?? ""),
-          fallback: String(targetResponseIn?.fallback ?? currentTransform?.target_response?.fallback ?? "passthrough"),
           header_filtering: isPlainObject(targetResponseIn?.header_filtering)
             ? targetResponseIn.header_filtering
             : (currentTransform?.target_response?.header_filtering ?? DEFAULT_CONFIG_V1.transform.target_response.header_filtering),

@@ -7,6 +7,7 @@ import {
 import { authProfilePrefix, isValidHttpSecretRef } from "./auth_profile_keys.js";
 import { normalizeRequestSecurityConfig, inspectRequestSecurityViolations } from "./outbound_security.js";
 import { AUTH_PROFILE_PREFIXES } from "./worker_shared.js";
+import { CONFIG_CONTRACT_VERSION, lookupConfigConstraint } from "./config_contract.js";
 
 const CONFIG_SCHEMA_V1 = {
   proxyName: "string|null",
@@ -60,7 +61,6 @@ const CONFIG_SCHEMA_V1 = {
   apiKeyPolicy: {
     proxyExpirySeconds: "integer|null",
     issuerExpirySeconds: "integer|null",
-    adminExpirySeconds: "integer|null",
   },
   targetCredentialRotation: {
     enabled: "boolean",
@@ -189,7 +189,6 @@ const DEFAULT_CONFIG_V1 = {
   apiKeyPolicy: {
     proxyExpirySeconds: null,
     issuerExpirySeconds: null,
-    adminExpirySeconds: null,
   },
   targetCredentialRotation: {
     enabled: false,
@@ -258,6 +257,9 @@ const DEFAULT_CONFIG_V1 = {
 };
 
 let yamlApi = null;
+const MAX_CONFIG_PARSE_DEPTH = 64;
+const MAX_CONFIG_PARSE_NODES = 20000;
+const UNSAFE_OBJECT_KEYS = new Set(["__proto__", "prototype", "constructor"]);
 
 async function loadYamlApi() {
   if (yamlApi) return yamlApi;
@@ -285,16 +287,27 @@ async function loadYamlApi() {
 }
 
 function pushProblem(problems, path, message) {
+  const rule = lookupConfigConstraint(path);
+  if (rule) {
+    problems.push({
+      path,
+      message,
+      expected_type: rule.type,
+      allowed_constraints: rule.constraints,
+    });
+    return;
+  }
   problems.push({ path, message });
 }
 
 function ensureNoUnknownKeys(obj, allowedKeys, path, problems) {
   if (!isNonArrayObject(obj)) return;
-  for (const key of Object.keys(obj)) {
-    if (!allowedKeys.has(key)) {
-      pushProblem(problems, `${path}.${key}`, "unknown field");
-    }
-  }
+  // Unknown fields are intentionally ignored (dropped by normalization)
+  // rather than rejected, to allow forward-compatible config payloads.
+  // Keep this function as a no-op to preserve call-site readability.
+  void allowedKeys;
+  void path;
+  void problems;
 }
 
 function validateAndNormalizeStatusList(statusList, path, problems) {
@@ -542,7 +555,14 @@ function normalizeHttpAuthorizationConfig(input, path, problems) {
     for (const [k, v] of Object.entries(headersIn)) {
       const name = String(k || "").trim();
       if (!name) continue;
-      headers[name] = String(v ?? "");
+      if (typeof v !== "string") {
+        pushProblem(problems, `${path}.static.headers.${name}`, "must be a string");
+        continue;
+      }
+      headers[name] = v;
+    }
+    if (staticIn.secret_ref !== undefined && staticIn.secret_ref !== null && typeof staticIn.secret_ref !== "string") {
+      pushProblem(problems, `${path}.static.secret_ref`, "must be a string or null");
     }
     const secretRefRaw = staticIn.secret_ref === undefined || staticIn.secret_ref === null ? null : String(staticIn.secret_ref || "").trim();
     const secret_ref = secretRefRaw || null;
@@ -560,6 +580,9 @@ function normalizeHttpAuthorizationConfig(input, path, problems) {
     return { type: "key_rotation", profile: null, auth_headers: {}, key_rotation_http_request: null, key_rotation_http_response: {} };
   }
   const profileSource = rotationIn.profile ?? input.profile;
+  if (profileSource !== undefined && profileSource !== null && typeof profileSource !== "string") {
+    pushProblem(problems, `${path}.key_rotation.profile`, "must be a string");
+  }
   const profileRaw = profileSource === undefined || profileSource === null ? "" : String(profileSource || "").trim();
   const authHeadersIn = input.auth_headers ?? rotationIn.auth_headers ?? {};
   const auth_headers = {};
@@ -574,13 +597,21 @@ function normalizeHttpAuthorizationConfig(input, path, problems) {
         pushProblem(problems, `${path}.auth_headers[${idx}].name`, "must be a non-empty string");
         return;
       }
-      auth_headers[name] = String(entry.value ?? "");
+      if (typeof entry.value !== "string") {
+        pushProblem(problems, `${path}.auth_headers[${idx}].value`, "must be a string");
+        return;
+      }
+      auth_headers[name] = entry.value;
     });
   } else if (isNonArrayObject(authHeadersIn)) {
     for (const [k, v] of Object.entries(authHeadersIn)) {
       const name = String(k || "").trim();
       if (!name) continue;
-      auth_headers[name] = String(v ?? "");
+      if (typeof v !== "string") {
+        pushProblem(problems, `${path}.auth_headers.${name}`, "must be a string");
+        continue;
+      }
+      auth_headers[name] = v;
     }
   } else if (input.auth_headers !== undefined || rotationIn.auth_headers !== undefined) {
     pushProblem(problems, `${path}.auth_headers`, "must be an object or array of {name,value}");
@@ -599,7 +630,11 @@ function normalizeHttpAuthorizationConfig(input, path, problems) {
     for (const [k, v] of Object.entries(keyRotationHttpResponseIn)) {
       const name = String(k || "").trim();
       if (!name) continue;
-      key_rotation_http_response[name] = String(v ?? "");
+      if (typeof v !== "string") {
+        pushProblem(problems, `${path}.key_rotation.key_rotation_http_response.${name}`, "must be a string");
+        continue;
+      }
+      key_rotation_http_response[name] = v;
     }
   } else if (rotationIn.key_rotation_http_response !== undefined) {
     pushProblem(problems, `${path}.key_rotation.key_rotation_http_response`, "must be an object");
@@ -635,8 +670,14 @@ function normalizeHttpRequestConfig(input, path, problems, requireUrl) {
     pushProblem(problems, path, "must be an object or null");
     return null;
   }
+  if (input.method !== undefined && input.method !== null && typeof input.method !== "string") {
+    pushProblem(problems, `${path}.method`, "must be a string");
+  }
   const methodRaw = input.method === undefined || input.method === null ? "GET" : String(input.method || "").trim();
   const method = methodRaw ? methodRaw.toUpperCase() : "GET";
+  if (input.url !== undefined && input.url !== null && typeof input.url !== "string") {
+    pushProblem(problems, `${path}.url`, "must be a string");
+  }
   const urlRaw = input.url === undefined || input.url === null ? "" : String(input.url || "").trim();
   if (requireUrl && !urlRaw) {
     pushProblem(problems, path + ".url", "must be provided");
@@ -665,7 +706,11 @@ function normalizeHttpRequestConfig(input, path, problems, requireUrl) {
           pushProblem(problems, `${path}.headers[${idx}].name`, "must be a non-empty string");
           return;
         }
-        headers[name] = String(entry.value ?? "");
+        if (typeof entry.value !== "string") {
+          pushProblem(problems, `${path}.headers[${idx}].value`, "must be a string");
+          return;
+        }
+        headers[name] = entry.value;
       });
     } else if (!isNonArrayObject(input.headers)) {
       pushProblem(problems, path + ".headers", "must be an object or an array of {name,value}");
@@ -674,11 +719,18 @@ function normalizeHttpRequestConfig(input, path, problems, requireUrl) {
       for (const [k, v] of Object.entries(input.headers)) {
         const name = String(k || "").trim();
         if (!name) continue;
-        headers[name] = String(v ?? "");
+        if (typeof v !== "string") {
+          pushProblem(problems, `${path}.headers.${name}`, "must be a string");
+          continue;
+        }
+        headers[name] = v;
       }
     }
   }
   let body = input.body !== undefined ? input.body : null;
+  if (input.body_type !== undefined && input.body_type !== null && typeof input.body_type !== "string") {
+    pushProblem(problems, `${path}.body_type`, "must be a string");
+  }
   const bodyTypeAlias = input.body_type === undefined || input.body_type === null ? "" : String(input.body_type || "").trim().toLowerCase();
   if (bodyTypeAlias) {
     if (bodyTypeAlias === "none") {
@@ -690,6 +742,9 @@ function normalizeHttpRequestConfig(input, path, problems, requireUrl) {
     } else if (bodyTypeAlias === "raw") {
       body = { type: "raw", raw: typeof input.body === "string" ? input.body : String(input.body ?? "") };
     }
+  }
+  if (input.auth_profile !== undefined && input.auth_profile !== null && typeof input.auth_profile !== "string") {
+    pushProblem(problems, `${path}.auth_profile`, "must be a string");
   }
   const authProfileRaw = input.auth_profile === undefined || input.auth_profile === null ? null : String(input.auth_profile || "").trim();
   const legacyProfile = authProfileRaw || null;
@@ -737,7 +792,6 @@ function validateAndNormalizeConfigV1(configInput) {
     input.apiKeyPolicy = {
       proxyExpirySeconds: pac?.proxy_key?.expiry_in_seconds ?? null,
       issuerExpirySeconds: pac?.jwt_issuer_key?.expiry_in_seconds ?? null,
-      adminExpirySeconds: pac?.admin_key?.expiry_in_seconds ?? null,
     };
   }
   if (isNonArrayObject(input.logging)) {
@@ -985,12 +1039,11 @@ function validateAndNormalizeConfigV1(configInput) {
     pushProblem(problems, "$.apiKeyPolicy", "must be an object when provided");
   }
   if (isNonArrayObject(apiKeyPolicyIn)) {
-    ensureNoUnknownKeys(apiKeyPolicyIn, new Set(["proxyExpirySeconds", "issuerExpirySeconds", "adminExpirySeconds"]), "$.apiKeyPolicy", problems);
+    ensureNoUnknownKeys(apiKeyPolicyIn, new Set(["proxyExpirySeconds", "issuerExpirySeconds"]), "$.apiKeyPolicy", problems);
   }
 
   const proxyExpirySeconds = readExpirySeconds(isNonArrayObject(apiKeyPolicyIn) ? apiKeyPolicyIn.proxyExpirySeconds : undefined, "$.apiKeyPolicy.proxyExpirySeconds", problems);
   const issuerExpirySeconds = readExpirySeconds(isNonArrayObject(apiKeyPolicyIn) ? apiKeyPolicyIn.issuerExpirySeconds : undefined, "$.apiKeyPolicy.issuerExpirySeconds", problems);
-  const adminExpirySeconds = readExpirySeconds(isNonArrayObject(apiKeyPolicyIn) ? apiKeyPolicyIn.adminExpirySeconds : undefined, "$.apiKeyPolicy.adminExpirySeconds", problems);
 
   const tcrIn = input.targetCredentialRotation ?? {};
   if (!isNonArrayObject(tcrIn)) {
@@ -1253,6 +1306,7 @@ function validateAndNormalizeConfigV1(configInput) {
   if (problems.length > 0) {
     throw new HttpError(400, "INVALID_CONFIG", "Configuration validation failed", {
       expected: CONFIG_SCHEMA_V1,
+      contract_version: CONFIG_CONTRACT_VERSION,
       problems,
     });
   }
@@ -1288,7 +1342,6 @@ function validateAndNormalizeConfigV1(configInput) {
     apiKeyPolicy: {
       proxyExpirySeconds,
       issuerExpirySeconds,
-      adminExpirySeconds,
     },
     targetCredentialRotation: {
       enabled: !!tcrEnabled,
@@ -1342,13 +1395,57 @@ async function parseYamlConfigText(yamlText) {
   const yaml = await loadYamlApi();
   let parsed;
   try {
-    parsed = yaml.parse(yamlText);
+    parsed = yaml.parse(yamlText, {
+      schema: "core",
+      strict: true,
+      merge: false,
+      uniqueKeys: true,
+      stringKeys: true,
+      maxAliasCount: 20,
+      prettyErrors: false,
+    });
   } catch (e) {
     throw new HttpError(400, "INVALID_CONFIG", "Configuration YAML could not be parsed", {
       cause: String(e?.message || e),
     });
   }
+  assertSafeParsedYamlStructure(parsed);
   return validateAndNormalizeConfigV1(parsed);
+}
+
+function assertSafeParsedYamlStructure(root) {
+  let nodes = 0;
+  function walk(value, path, depth) {
+    nodes += 1;
+    if (nodes > MAX_CONFIG_PARSE_NODES) {
+      throw new HttpError(400, "INVALID_CONFIG", "Configuration YAML is too complex", {
+        path,
+        limit: MAX_CONFIG_PARSE_NODES,
+      });
+    }
+    if (depth > MAX_CONFIG_PARSE_DEPTH) {
+      throw new HttpError(400, "INVALID_CONFIG", "Configuration YAML nesting is too deep", {
+        path,
+        limit: MAX_CONFIG_PARSE_DEPTH,
+      });
+    }
+    if (Array.isArray(value)) {
+      for (let i = 0; i < value.length; i += 1) {
+        walk(value[i], `${path}[${i}]`, depth + 1);
+      }
+      return;
+    }
+    if (!isNonArrayObject(value)) return;
+    for (const key of Object.keys(value)) {
+      if (UNSAFE_OBJECT_KEYS.has(key)) {
+        throw new HttpError(400, "INVALID_CONFIG", "Configuration contains unsafe key", {
+          path: `${path}.${key}`,
+        });
+      }
+      walk(value[key], `${path}.${key}`, depth + 1);
+    }
+  }
+  walk(root, "$", 0);
 }
 
 async function stringifyYamlConfig(configObj) {

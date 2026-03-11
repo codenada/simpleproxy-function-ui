@@ -118,7 +118,7 @@ function createKeyAuthApi({
       missingMessage: "Admin key is not initialized.",
       unauthorizedCode: "UNAUTHORIZED_ADMIN",
       unauthorizedMessage: "Missing or invalid X-Admin-Key",
-      policyKey: "adminExpirySeconds",
+      policyKey: null,
       responseKey: "admin_key",
     },
   };
@@ -176,7 +176,7 @@ function createKeyAuthApi({
     const got = request.headers.get(cfg.header) || "";
 
     const cfgDoc = await loadConfigV1(env);
-    const expirySeconds = cfgDoc?.apiKeyPolicy?.[cfg.policyKey] ?? null;
+    const expirySeconds = cfg.policyKey ? (cfgDoc?.apiKeyPolicy?.[cfg.policyKey] ?? null) : null;
     const now = Date.now();
     const primaryExpired =
       expirySeconds !== null &&
@@ -315,14 +315,14 @@ function createKeyAuthApi({
 
   async function rotateKey(kind, request, env) {
     const cfg = getRotationProfile(kind);
-    const overlapMs = getEnvInt(env, "ROTATE_OVERLAP_MS", defaults.ROTATE_OVERLAP_MS);
+    const overlapMs = kind === "admin" ? 0 : getEnvInt(env, "ROTATE_OVERLAP_MS", defaults.ROTATE_OVERLAP_MS);
     const now = Date.now();
     const oldExpiresAt = now + Math.max(0, overlapMs);
     const [state, config] = await Promise.all([getKeyAuthState(kind, env), loadConfigV1(env)]);
     const current = state.current;
     const currentPrimaryCreatedAt = parseMs(state.primaryCreatedAt);
     const newKey = generateSecret();
-    const expirySeconds = config?.apiKeyPolicy?.[cfg.policyKey] ?? null;
+    const expirySeconds = cfg.policyKey ? (config?.apiKeyPolicy?.[cfg.policyKey] ?? null) : null;
 
     await Promise.all([secretPutValue(env, cfg.current, newKey), secretPutValue(env, cfg.primaryCreatedAt, String(now))]);
     if (current && overlapMs > 0) {

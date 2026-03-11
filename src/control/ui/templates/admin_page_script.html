@@ -14,7 +14,17 @@
         let liveLogStreamAbortController = null;
         let liveLogReconnectTimer = null;
         let liveLogShouldReconnect = false;
+        let liveLogModalOpen = false;
+        let fetchErrorHookInstalled = false;
+        let lastApiErrorSignature = '';
+        let lastApiErrorAtMs = 0;
         const LIVE_LOG_MAX_CHARS = 200000;
+        const LOGGING_TTL_PRESET_SECONDS = Object.freeze({
+          "1h": 3600,
+          "6h": 21600,
+          "24h": 86400,
+          "7d": 604800,
+        });
 {{sandbox_templates_js}}
         const SANDBOX_REDACT_HEADERS = new Set([
           'authorization',
@@ -427,9 +437,93 @@
            node.textContent = message || '';
            node.style.display = message ? 'block' : 'none';
          }
-         function readKeyInput() {
-           return (el('admin-key')?.value || '').trim();
+         function showApiErrorModal(rawText, context) {
+           const modal = el('api-error-modal');
+           const output = el('api-error-output');
+           const text = String(rawText || '').trim() || 'Unknown API error';
+           const details = (context ? String(context) + '\n\n' : '') + text;
+           const now = Date.now();
+           const signature = details.slice(0, 400);
+           if (signature === lastApiErrorSignature && (now - lastApiErrorAtMs) < 1500) return;
+           lastApiErrorSignature = signature;
+           lastApiErrorAtMs = now;
+           if (output) output.textContent = details;
+           if (modal && typeof modal.showModal === 'function') {
+             if (!modal.open) modal.showModal();
+           }
          }
+         function installFetchErrorModalHook() {
+           if (fetchErrorHookInstalled || typeof window.fetch !== 'function') return;
+           fetchErrorHookInstalled = true;
+           const nativeFetch = window.fetch.bind(window);
+           window.fetch = async (...args) => {
+             let res;
+             try {
+               res = await nativeFetch(...args);
+             } catch (err) {
+               showApiErrorModal(String(err?.message || err), 'Network error');
+               throw err;
+             }
+             try {
+               if (!res.ok) {
+                 const req = args[0];
+                 const init = args[1] || {};
+                 const method = String(init?.method || 'GET').toUpperCase();
+                 const url = typeof req === 'string' ? req : String(req?.url || '');
+                 let body = '';
+                 try { body = await res.clone().text(); } catch {}
+                 showApiErrorModal(body || ('Request failed (' + res.status + ')'), method + ' ' + url + '\nStatus: ' + res.status);
+               }
+             } catch {
+               // no-op
+             }
+             return res;
+           };
+         }
+        function readKeyInput() {
+          return (el('admin-key')?.value || '').trim();
+        }
+        function setLoggingTtlCustomVisibility() {
+          const preset = String(el('logging-ttl-preset')?.value || '1h');
+          const showCustom = preset === 'custom';
+          if (el('logging-ttl-custom-wrap')) {
+            el('logging-ttl-custom-wrap').style.display = showCustom ? 'block' : 'none';
+          }
+        }
+        function readLoggingTtlSeconds() {
+          const preset = String(el('logging-ttl-preset')?.value || '1h');
+          if (preset !== 'custom') {
+            const fixed = Number(LOGGING_TTL_PRESET_SECONDS[preset] || 0);
+            if (!Number.isInteger(fixed) || fixed < 1) {
+              throw new Error('Logging TTL preset is invalid.');
+            }
+            return fixed;
+          }
+          const customHours = Number(el('logging-ttl-custom-hours')?.value || 0);
+          if (!Number.isFinite(customHours) || customHours < 1) {
+            throw new Error('Custom Logging TTL must be at least 1 hour.');
+          }
+          return Math.floor(customHours * 3600);
+        }
+        function setLoggingTtlFromSeconds(ttlSeconds) {
+          const ttl = Number(ttlSeconds || 0);
+          const presetNode = el('logging-ttl-preset');
+          const customNode = el('logging-ttl-custom-hours');
+          if (!presetNode) return;
+          if (ttl === LOGGING_TTL_PRESET_SECONDS["1h"]) {
+            presetNode.value = "1h";
+          } else if (ttl === LOGGING_TTL_PRESET_SECONDS["6h"]) {
+            presetNode.value = "6h";
+          } else if (ttl === LOGGING_TTL_PRESET_SECONDS["24h"]) {
+            presetNode.value = "24h";
+          } else if (ttl === LOGGING_TTL_PRESET_SECONDS["7d"]) {
+            presetNode.value = "7d";
+          } else {
+            presetNode.value = "custom";
+            if (customNode && ttl > 0) customNode.value = String(Math.max(1, Math.round(ttl / 3600)));
+          }
+          setLoggingTtlCustomVisibility();
+        }
         function setConfigValidationError(message) {
            const field = el('config-yaml');
            const msg = el('config-validation-error');
@@ -464,16 +558,15 @@
         function setSharedFooterEnabled(enabled) {
           const on = !!enabled;
           const saveBtn = el('shared-save-btn');
-          const revertBtn = el('shared-revert-btn');
+          const revertLink = el('shared-revert-link');
           if (saveBtn) {
             saveBtn.disabled = !on;
             saveBtn.style.opacity = on ? '1' : '0.5';
             saveBtn.style.cursor = on ? 'pointer' : 'not-allowed';
           }
-          if (revertBtn) {
-            revertBtn.disabled = !on;
-            revertBtn.style.opacity = on ? '1' : '0.5';
-            revertBtn.style.cursor = on ? 'pointer' : 'not-allowed';
+          if (revertLink) {
+            revertLink.style.opacity = on ? '1' : '0.5';
+            revertLink.style.pointerEvents = on ? 'auto' : 'none';
           }
         }
         function updateSharedFooterState() {
@@ -499,6 +592,48 @@
         function onOff(enabled) {
           return enabled ? 'Enabled' : 'Disabled';
         }
+        function setRuntimeNetworkControlsEditable(enabled) {
+          const on = !!enabled;
+          const fieldsWrap = el('inbound-runtime-controls-fields');
+          if (!fieldsWrap) return;
+          fieldsWrap.style.opacity = on ? '1' : '0.55';
+          fieldsWrap.querySelectorAll('input, select, textarea, button').forEach((node) => {
+            node.disabled = !on;
+          });
+        }
+        async function promptNetworkControlsEnable() {
+          const modal = el('network-controls-warning-modal');
+          if (!modal || typeof modal.showModal !== 'function') {
+            return window.confirm('Enable in-app network controls? External network controls are recommended.');
+          }
+          return new Promise((resolve) => {
+            const continueBtn = el('network-controls-warning-continue-btn');
+            const cancelBtn = el('network-controls-warning-cancel-btn');
+            const cleanup = () => {
+              continueBtn?.removeEventListener('click', onContinue);
+              cancelBtn?.removeEventListener('click', onCancel);
+              modal.removeEventListener('cancel', onCancelEvent);
+            };
+            const onContinue = () => {
+              cleanup();
+              modal.close();
+              resolve(true);
+            };
+            const onCancel = () => {
+              cleanup();
+              modal.close();
+              resolve(false);
+            };
+            const onCancelEvent = (evt) => {
+              evt.preventDefault();
+              onCancel();
+            };
+            continueBtn?.addEventListener('click', onContinue);
+            cancelBtn?.addEventListener('click', onCancel);
+            modal.addEventListener('cancel', onCancelEvent);
+            if (!modal.open) modal.showModal();
+          });
+        }
         async function networkControlsLoad() {
           try {
             const [config, version] = await Promise.all([
@@ -513,13 +648,16 @@
             const adminCidrs = Array.isArray(adminControls?.ip_filter?.allowed_cidrs)
               ? adminControls.ip_filter.allowed_cidrs
               : [];
-            if (el('inbound-network-ip-filter-enabled-text')) el('inbound-network-ip-filter-enabled-text').textContent = onOff(!!ipFilter.enabled);
-            if (el('inbound-network-allowed-cidrs-text')) el('inbound-network-allowed-cidrs-text').textContent = runtimeCidrs.length ? runtimeCidrs.join(', ') : 'n/a';
-            if (el('inbound-network-rpm-enabled-text')) el('inbound-network-rpm-enabled-text').textContent = onOff(!!requestRate.enabled);
-            if (el('inbound-network-rpm-limit-text')) {
+            const runtimeEnabled = !!ipFilter.enabled || !!requestRate.enabled;
+            if (el('inbound-network-controls-enabled')) el('inbound-network-controls-enabled').checked = runtimeEnabled;
+            if (el('inbound-network-ip-filter-enabled')) el('inbound-network-ip-filter-enabled').checked = !!ipFilter.enabled;
+            if (el('inbound-network-allowed-cidrs')) el('inbound-network-allowed-cidrs').value = runtimeCidrs.join(', ');
+            if (el('inbound-network-rpm-enabled')) el('inbound-network-rpm-enabled').checked = !!requestRate.enabled;
+            if (el('inbound-network-rpm-limit')) {
               const rpm = Number(requestRate.rpm_rate_limit || 0);
-              el('inbound-network-rpm-limit-text').textContent = Number.isFinite(rpm) && rpm > 0 ? String(rpm) : 'n/a';
+              el('inbound-network-rpm-limit').value = Number.isFinite(rpm) && rpm > 0 ? String(rpm) : '';
             }
+            setRuntimeNetworkControlsEditable(runtimeEnabled);
             if (el('admin-control-login-enabled-text')) el('admin-control-login-enabled-text').textContent = onOff(!!adminControls?.login_page?.enabled);
             if (el('admin-control-login-rpm-text')) {
               const rpm = Number(adminControls?.login_page?.rpm_rate_limit || 0);
@@ -537,6 +675,41 @@
             showWarning('Unable to load network controls: ' + String(e.message || e));
           }
         }
+        async function networkControlsSave() {
+          try {
+            const config = await fetchConfigJsonFromYaml();
+            if (!config.traffic_controls) config.traffic_controls = {};
+            if (!config.traffic_controls.ip_filter) config.traffic_controls.ip_filter = {};
+            if (!config.traffic_controls.request_rate_limit) config.traffic_controls.request_rate_limit = {};
+            const controlsEnabled = !!el('inbound-network-controls-enabled')?.checked;
+            const ipEnabled = controlsEnabled && !!el('inbound-network-ip-filter-enabled')?.checked;
+            const rpmEnabled = controlsEnabled && !!el('inbound-network-rpm-enabled')?.checked;
+            const cidrs = controlsEnabled ? parseCsvList(el('inbound-network-allowed-cidrs')?.value || '') : [];
+            const rpmRaw = String(el('inbound-network-rpm-limit')?.value || '').trim();
+            const rpm = Number(rpmRaw || 0);
+            config.traffic_controls.ip_filter.enabled = ipEnabled;
+            config.traffic_controls.ip_filter.allowed_cidrs = cidrs.length ? cidrs : ['0.0.0.0/0', '::/0'];
+            config.traffic_controls.request_rate_limit.enabled = rpmEnabled;
+            config.traffic_controls.request_rate_limit.rpm_rate_limit = Number.isFinite(rpm) && rpm > 0 ? rpm : 20;
+            const res = await fetch(ADMIN_ROOT + '/config', {
+              method: 'PUT',
+              headers: { 'Authorization': 'Bearer ' + currentKey, 'Content-Type': 'application/json' },
+              body: JSON.stringify(config),
+            });
+            if (res.status === 401) {
+              handleUnauthorized();
+              throw new Error('Unauthorized (401)');
+            }
+            if (!res.ok) {
+              const text = await res.text();
+              throw new Error(text || 'Failed to save network controls');
+            }
+            clearDirty('inbound-traffic-controls');
+            await networkControlsLoad();
+          } catch (e) {
+            showWarning('Unable to save network controls: ' + String(e.message || e));
+          }
+        }
         async function saveTabChanges(tabName) {
           const beforeDirty = dirtyTabs.has(tabName);
           if (!beforeDirty) return true;
@@ -546,6 +719,7 @@
           else if (tabName === 'outbound-auth') await keyRotationSave();
           else if (tabName === 'inbound-auth') await inboundAuthSave();
           else if (tabName === 'admin-auth') await adminAuthSave();
+          else if (tabName === 'inbound-traffic-controls') await networkControlsSave();
           else if (tabName === 'outbound-transform') await saveTransformConfig('outbound');
           else if (tabName === 'inbound-transform') await saveTransformConfig('inbound');
           return !dirtyTabs.has(tabName);
@@ -899,6 +1073,9 @@
              throw new Error('Unauthorized (401)');
            }
            const text = await res.text();
+           if (!res.ok) {
+             throw new Error(text || ('Request failed (' + res.status + ')'));
+           }
            if (expectText) return text;
            try { return JSON.parse(text); } catch { return text; }
          }
@@ -949,7 +1126,7 @@
         }
         function scheduleLiveLogReconnect(delayMs) {
           clearLiveLogReconnectTimer();
-          if (!liveLogShouldReconnect || !currentKey || currentTabName !== 'live-log') return;
+          if (!liveLogShouldReconnect || !currentKey || !liveLogModalOpen) return;
           liveLogReconnectTimer = setTimeout(() => {
             startLiveLogStream();
           }, Math.max(500, Number(delayMs || 1500)));
@@ -975,7 +1152,7 @@
             setLiveLogStatus('Login required.', 'warn');
             return;
           }
-          if (currentTabName !== 'live-log') return;
+          if (!liveLogModalOpen) return;
           if (liveLogStreamAbortController) return;
           clearLiveLogReconnectTimer();
           liveLogShouldReconnect = true;
@@ -1035,7 +1212,7 @@
                 appendLiveLog(typeof payload === 'string' ? payload : JSON.stringify(payload, null, 2));
               }
             }
-            if (liveLogShouldReconnect && currentTabName === 'live-log') {
+            if (liveLogShouldReconnect && liveLogModalOpen) {
               setLiveLogStatus('Disconnected. Reconnecting...', 'warn');
               liveLogStreamAbortController = null;
               scheduleLiveLogReconnect(1000);
@@ -1047,7 +1224,7 @@
               setLiveLogStatus('Disconnected.', null);
             } else {
               setLiveLogStatus('Stream error: ' + String(e.message || e), 'error');
-              if (liveLogShouldReconnect && currentTabName === 'live-log') {
+              if (liveLogShouldReconnect && liveLogModalOpen) {
                 scheduleLiveLogReconnect(2000);
               }
             }
@@ -1068,7 +1245,7 @@
               return;
             }
             setLiveLogStatus('Logging is enabled. Connecting...', 'ok');
-            if (currentTabName === 'live-log') {
+            if (liveLogModalOpen) {
               startLiveLogStream();
             }
           } catch (e) {
@@ -1090,9 +1267,6 @@
               if (decision === 'discard') {
                 await discardTabChanges(currentTabName);
               }
-            }
-            if (currentTabName === 'live-log' && name !== 'live-log') {
-              stopLiveLogStream();
             }
             panels.forEach((panel) => {
               panel.style.display = panel.id === 'tab-' + name ? 'block' : 'none';
@@ -1120,9 +1294,6 @@
               }
               debugLoadTrace();
               loadLoggingStatus();
-            }
-            if (name === 'live-log') {
-              loadLiveLogStatusAndMaybeConnect();
             }
             if (name === 'outbound-auth') {
               keyRotationLoad();
@@ -1235,10 +1406,7 @@
         }
          async function debugEnable() {
            try {
-             const ttl = Number(el('logging-ttl-seconds')?.value || 0);
-             if (!Number.isInteger(ttl) || ttl < 1) {
-               throw new Error('Logging TTL must be a positive integer.');
-             }
+             const ttl = readLoggingTtlSeconds();
              await apiCall(ADMIN_ROOT + '/debug', 'PUT', { enabled: true, ttl_seconds: ttl });
              await loadLoggingStatus();
            }
@@ -1341,17 +1509,34 @@
               setHtml('logging-status', html);
             }
             const ttlRemaining = Number.isFinite(Number(d.ttl_remaining_seconds)) ? Number(d.ttl_remaining_seconds) : null;
-            if (el('logging-ttl-remaining-2')) {
-              el('logging-ttl-remaining-2').textContent = ttlRemaining === null ? 'n/a' : String(ttlRemaining);
+            if (el('logging-session-expires-at')) {
+              let sessionExpiresAt = 'n/a';
+              if (Number.isFinite(ttlRemaining) && ttlRemaining !== null && ttlRemaining > 0) {
+                try {
+                  sessionExpiresAt = new Date(Date.now() + (ttlRemaining * 1000)).toLocaleString();
+                } catch {}
+              }
+              el('logging-session-expires-at').textContent = sessionExpiresAt;
             }
-            if (el('logging-ttl-seconds') && Number(d.max_ttl_seconds || 0) > 0 && !el('logging-ttl-seconds').value) {
-              el('logging-ttl-seconds').value = String(Number(d.max_ttl_seconds));
+            if (Number(d.max_ttl_seconds || 0) > 0) {
+              const currentPreset = String(el('logging-ttl-preset')?.value || '');
+              const currentCustom = String(el('logging-ttl-custom-hours')?.value || '');
+              if (!currentPreset || (currentPreset === 'custom' && !currentCustom)) {
+                setLoggingTtlFromSeconds(Number(d.max_ttl_seconds));
+              }
+            }
+            const launchLink = el('launch-live-log-link');
+            if (launchLink) {
+              const canLaunch = !!d.enabled;
+              launchLink.style.color = canLaunch ? '#0f172a' : '#64748b';
+              launchLink.style.opacity = canLaunch ? '1' : '0.6';
+              launchLink.style.pointerEvents = canLaunch ? 'auto' : 'none';
             }
             const configEnabled = !!(endpointRequest && endpointRequest.url);
             if (el('logging-config-enabled')) el('logging-config-enabled').checked = configEnabled;
             if (el('logging-config-fields')) el('logging-config-fields').style.display = configEnabled ? 'block' : 'none';
             if (el('logging-secret-wrap')) el('logging-secret-wrap').style.display = configEnabled ? 'block' : 'none';
-            if (currentTabName === 'live-log') {
+            if (liveLogModalOpen) {
               if (d.enabled) {
                 setLiveLogStatus('Logging is enabled. Connecting...', 'ok');
                 startLiveLogStream();
@@ -1382,6 +1567,19 @@
              setOutput('config-output', String(e.message || e));
              setConfigSaveEnabled(false);
           }
+        }
+        function openLiveLogModal() {
+          const modal = el('live-log-modal');
+          if (!modal || typeof modal.showModal !== 'function') return;
+          if (!modal.open) modal.showModal();
+          liveLogModalOpen = true;
+          void loadLiveLogStatusAndMaybeConnect();
+        }
+        function closeLiveLogModal() {
+          liveLogModalOpen = false;
+          stopLiveLogStream();
+          const modal = el('live-log-modal');
+          if (modal?.open) modal.close();
         }
         async function configValidate(showOutput) {
           const yaml = applyProxyNameToYaml(el('config-yaml')?.value || '', el('proxy-name')?.value || '');
@@ -1469,13 +1667,26 @@
              setOutput('config-output', 'Not saved\\n\\n' + String(e.message || e));
            }
          }
-         function normalizeNullableIntegerInput(raw) {
-           const v = String(raw == null ? '' : raw).trim();
-           if (!v || v.toLowerCase() === 'null') return null;
-           const n = Number(v);
-           if (!Number.isInteger(n) || n < 1) throw new Error('Expiry fields must be null or positive integers.');
-           return n;
-         }
+        function normalizeNullableIntegerInput(raw) {
+          const v = String(raw == null ? '' : raw).trim();
+          if (!v || v.toLowerCase() === 'null') return null;
+          const n = Number(v);
+          if (!Number.isInteger(n) || n < 1) throw new Error('Expiry fields must be null or positive integers.');
+          return n;
+        }
+        const PROXY_EXPIRY_PRESETS = new Set(['3600', '86400', '604800', '2592000', '31622400']);
+        function toProxyExpirySelectValue(rawSeconds) {
+          if (rawSeconds == null) return '';
+          const s = String(rawSeconds);
+          return PROXY_EXPIRY_PRESETS.has(s) ? s : '';
+        }
+        function readProxyExpirySelectSeconds() {
+          const value = String(el('kr-proxy-expiry')?.value || '').trim();
+          if (!value) return null;
+          const n = Number(value);
+          if (!Number.isInteger(n) || n < 1) throw new Error('Proxy key expiration must be a positive integer or empty.');
+          return n;
+        }
         async function keyRotationLoad() {
           try {
             const payload = await apiCall(ADMIN_ROOT + '/key-rotation-config', 'GET');
@@ -1496,9 +1707,8 @@
              if (el('kr-expires-at-path')) el('kr-expires-at-path').value = d.expires_at_path == null ? '' : String(d.expires_at_path);
              if (el('kr-refresh-skew')) el('kr-refresh-skew').value = String(Number(d.refresh_skew_seconds || 0));
              if (el('kr-retry-on-401')) el('kr-retry-on-401').checked = !!d.retry_once_on_401;
-            if (el('kr-proxy-expiry')) el('kr-proxy-expiry').value = d.proxy_expiry_seconds == null ? '' : String(d.proxy_expiry_seconds);
+            if (el('kr-proxy-expiry')) el('kr-proxy-expiry').value = toProxyExpirySelectValue(d.proxy_expiry_seconds);
             if (el('kr-issuer-expiry')) el('kr-issuer-expiry').value = d.issuer_expiry_seconds == null ? '' : String(d.issuer_expiry_seconds);
-            if (el('kr-admin-expiry')) el('kr-admin-expiry').value = d.admin_expiry_seconds == null ? '' : String(d.admin_expiry_seconds);
             if (el('kr-output')) el('kr-output').textContent = '';
             clearDirty('outbound-auth');
             await loadJwtConfig();
@@ -1611,9 +1821,8 @@
               expires_at_path: d.expires_at_path ?? null,
               refresh_skew_seconds: Number(d.refresh_skew_seconds || 0),
               retry_once_on_401: !!d.retry_once_on_401,
-              proxy_expiry_seconds: normalizeNullableIntegerInput(el('kr-proxy-expiry')?.value),
+              proxy_expiry_seconds: readProxyExpirySelectSeconds(),
               issuer_expiry_seconds: normalizeNullableIntegerInput(el('kr-issuer-expiry')?.value),
-              admin_expiry_seconds: d.admin_expiry_seconds ?? null,
               static_header_key: d.static_header_key ?? null,
               static_header_value: d.static_header_value ?? null,
             };
@@ -1655,7 +1864,6 @@
               retry_once_on_401: !!d.retry_once_on_401,
               proxy_expiry_seconds: d.proxy_expiry_seconds ?? null,
               issuer_expiry_seconds: d.issuer_expiry_seconds ?? null,
-              admin_expiry_seconds: normalizeNullableIntegerInput(el('kr-admin-expiry')?.value),
               static_header_key: d.static_header_key ?? null,
               static_header_value: d.static_header_value ?? null,
             };
@@ -1855,9 +2063,6 @@
           try {
             const payload = await apiCall(ADMIN_ROOT + '/transform-config', 'GET');
             const d = payload?.data || {};
-            const enabled = d.enabled !== false;
-            if (el('transform-global-enabled-outbound')) el('transform-global-enabled-outbound').checked = enabled;
-            if (el('transform-global-enabled-inbound')) el('transform-global-enabled-inbound').checked = enabled;
             const outbound = d.outbound || {};
             const inbound = d.inbound || {};
             let headerMode = inbound?.header_filtering?.mode;
@@ -1886,11 +2091,7 @@
               el('inbound-header-filtering-names').value = names;
             }
             updateInboundHeaderFilteringHelp(el('inbound-header-filtering-mode')?.value || 'blacklist');
-            if (el('outbound-default-expr')) el('outbound-default-expr').value = String(outbound.defaultExpr || '');
             if (el('outbound-custom-js')) el('outbound-custom-js').value = outbound.custom_js_preprocessor || '';
-            if (el('outbound-fallback')) el('outbound-fallback').value = String(outbound.fallback || 'passthrough');
-            if (el('inbound-default-expr')) el('inbound-default-expr').value = String(inbound.defaultExpr || '');
-            if (el('inbound-fallback')) el('inbound-fallback').value = String(inbound.fallback || 'passthrough');
             outboundRuleDrafts = Array.isArray(outbound.rules) ? outbound.rules.map(normalizeRuleForUi) : [];
             inboundRuleDrafts = Array.isArray(inbound.rules) ? inbound.rules.map(normalizeRuleForUi) : [];
             renderTransformRules('outbound');
@@ -1905,9 +2106,7 @@
            try {
              const currentPayload = await apiCall(ADMIN_ROOT + '/transform-config', 'GET');
              const currentData = currentPayload?.data || {};
-             const globalEnabled = !!(el('transform-global-enabled-outbound')?.checked || el('transform-global-enabled-inbound')?.checked);
              const payload = {
-               enabled: globalEnabled,
                outbound: currentData.outbound || { enabled: true, rules: [] },
                inbound: currentData.inbound || { enabled: true, rules: [] },
              };
@@ -1915,8 +2114,6 @@
                payload.outbound = {
                  enabled: true,
                  custom_js_preprocessor: (el('outbound-custom-js')?.value || '').trim() || null,
-                 defaultExpr: el('outbound-default-expr')?.value || '',
-                 fallback: el('outbound-fallback')?.value || 'passthrough',
                  rules: collectRuleDrafts('outbound'),
                };
              } else {
@@ -1924,8 +2121,6 @@
                payload.inbound = {
                  enabled: true,
                  ...(inboundCustomEl ? { custom_js_preprocessor: (inboundCustomEl.value || '').trim() || null } : {}),
-                 defaultExpr: el('inbound-default-expr')?.value || '',
-                 fallback: el('inbound-fallback')?.value || 'passthrough',
                  header_filtering: {
                    mode: (el('inbound-header-filtering-mode')?.value || 'blacklist'),
                    names: parseCsvList(el('inbound-header-filtering-names')?.value || ''),
@@ -2162,6 +2357,72 @@
              pendingDeleteHeaderName = '';
            }
          }
+        function showAdminRotateConfirmModal() {
+          return new Promise((resolve) => {
+            const modal = el('admin-rotate-confirm-modal');
+            if (!modal || typeof modal.showModal !== 'function') {
+              resolve(window.confirm('Rotate admin key now? Existing key will expire immediately.'));
+              return;
+            }
+            const cancelBtn = el('admin-rotate-confirm-cancel-btn');
+            const continueBtn = el('admin-rotate-confirm-continue-btn');
+            const cleanup = () => {
+              cancelBtn?.removeEventListener('click', onCancel);
+              continueBtn?.removeEventListener('click', onContinue);
+              modal.removeEventListener('cancel', onCancelEvent);
+            };
+            const onCancel = () => {
+              cleanup();
+              if (modal.open) modal.close();
+              resolve(false);
+            };
+            const onContinue = () => {
+              cleanup();
+              if (modal.open) modal.close();
+              resolve(true);
+            };
+            const onCancelEvent = (evt) => {
+              evt.preventDefault();
+              onCancel();
+            };
+            cancelBtn?.addEventListener('click', onCancel);
+            continueBtn?.addEventListener('click', onContinue);
+            modal.addEventListener('cancel', onCancelEvent);
+            if (!modal.open) modal.showModal();
+          });
+        }
+        function setAdminRotateResultKey(value) {
+          const input = el('admin-rotate-new-key');
+          if (!input) return;
+          input.value = String(value || '');
+          input.type = 'password';
+          const toggle = el('admin-rotate-new-key-toggle');
+          if (toggle) toggle.textContent = 'show';
+        }
+        function showAdminRotateResultModal(newKey) {
+          const modal = el('admin-rotate-result-modal');
+          setAdminRotateResultKey(newKey);
+          if (modal && typeof modal.showModal === 'function') {
+            if (!modal.open) modal.showModal();
+            return;
+          }
+          window.alert('New admin key (shown once):\n\n' + String(newKey || ''));
+        }
+        async function copyAdminRotateResultKey() {
+          const value = String(el('admin-rotate-new-key')?.value || '');
+          if (!value) return;
+          try {
+            if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+              await navigator.clipboard.writeText(value);
+              return;
+            }
+          } catch {}
+          const input = el('admin-rotate-new-key');
+          if (!input) return;
+          input.focus();
+          input.select();
+          try { document.execCommand('copy'); } catch {}
+        }
         async function keysRefresh() {
            try {
              const payload = await apiCall(ADMIN_ROOT + '/keys', 'GET');
@@ -2195,9 +2456,7 @@
               '<div><b>Admin key</b></div>'
                + '<div>Primary: ' + (admin.primary_active ? 'active' : 'missing') + '</div>'
                + '<div>Primary created: ' + formatCreatedAt(admin.admin_primary_key_created_at) + '</div>'
-               + '<div>Secondary overlap key: ' + (admin.secondary_active ? 'active' : 'inactive') + '</div>'
-               + '<div>Secondary created: ' + formatCreatedAt(admin.admin_secondary_key_created_at) + '</div>'
-              + '<div>Expiry policy: ' + (admin.expiry_seconds === null ? 'n/a' : String(admin.expiry_seconds) + 's') + '</div>';
+               + '<div>Secondary overlap key: inactive (atomic rotation)</div>';
             if (el('keys-status-inbound')) setHtml('keys-status-inbound', proxyHtml);
             if (el('keys-status-admin')) setHtml('keys-status-admin', adminHtml);
             if (el('keys-status-issuer')) setHtml('keys-status-issuer', issuerHtml);
@@ -2221,18 +2480,23 @@
          }
         async function rotateAdmin() {
           try {
+            const confirmed = await showAdminRotateConfirmModal();
+            if (!confirmed) return;
             const out = await apiCall(ADMIN_ROOT + '/keys/admin/rotate', 'POST');
             setOutput('keys-output', out);
             setOutput('admin-keys-output', out);
+            const newKey = String(out?.data?.admin_key || '');
+            if (newKey) showAdminRotateResultModal(newKey);
             await keysRefresh();
             setCurrentKey('');
-            showWarning('Admin key rotated. Re-enter the new admin key from response.');
+            showWarning('Admin key rotated. Re-enter the new admin key to login.');
           } catch (e) {
             setOutput('keys-output', String(e.message || e));
           }
         }
 
         function bind() {
+          installFetchErrorModalHook();
           attachTabs();
           updateProxyHeader('');
           [
@@ -2328,6 +2592,51 @@
             evt.preventDefault();
             debugLoadTrace();
           });
+          el('launch-live-log-link')?.addEventListener('click', (evt) => {
+            evt.preventDefault();
+            openLiveLogModal();
+          });
+          el('live-log-close-btn')?.addEventListener('click', () => {
+            closeLiveLogModal();
+          });
+          el('live-log-modal')?.addEventListener('cancel', (evt) => {
+            evt.preventDefault();
+            closeLiveLogModal();
+          });
+          el('api-error-close-btn')?.addEventListener('click', () => {
+            const modal = el('api-error-modal');
+            if (modal?.open) modal.close();
+          });
+          el('api-error-modal')?.addEventListener('cancel', (evt) => {
+            evt.preventDefault();
+            const modal = el('api-error-modal');
+            if (modal?.open) modal.close();
+          });
+          el('admin-rotate-confirm-cancel-btn')?.addEventListener('click', () => {
+            const modal = el('admin-rotate-confirm-modal');
+            if (modal?.open) modal.close();
+          });
+          el('admin-rotate-result-close-btn')?.addEventListener('click', () => {
+            const modal = el('admin-rotate-result-modal');
+            if (modal?.open) modal.close();
+          });
+          el('admin-rotate-result-modal')?.addEventListener('cancel', (evt) => {
+            evt.preventDefault();
+            const modal = el('admin-rotate-result-modal');
+            if (modal?.open) modal.close();
+          });
+          el('admin-rotate-new-key-toggle')?.addEventListener('click', (evt) => {
+            evt.preventDefault();
+            const input = el('admin-rotate-new-key');
+            const link = el('admin-rotate-new-key-toggle');
+            if (!input || !link) return;
+            const toText = input.type === 'password';
+            input.type = toText ? 'text' : 'password';
+            link.textContent = toText ? 'hide' : 'show';
+          });
+          el('admin-rotate-new-key-copy-btn')?.addEventListener('click', async () => {
+            await copyAdminRotateResultKey();
+          });
           el('live-log-reconnect-link')?.addEventListener('click', (evt) => {
             evt.preventDefault();
             stopLiveLogStream();
@@ -2340,6 +2649,9 @@
           el('logging-ttl-refresh-link')?.addEventListener('click', (evt) => {
             evt.preventDefault();
             loadLoggingStatus();
+          });
+          el('logging-ttl-preset')?.addEventListener('change', () => {
+            setLoggingTtlCustomVisibility();
           });
           el('logging-status')?.addEventListener('click', (evt) => {
             const link = evt.target;
@@ -2481,14 +2793,6 @@
           el('inbound-rules-list')?.addEventListener('input', handleRuleInputValidation);
            el('footer-save-outbound-transform')?.addEventListener('click', () => saveTransformConfig('outbound'));
            el('footer-save-inbound-transform')?.addEventListener('click', () => saveTransformConfig('inbound'));
-           el('transform-global-enabled-outbound')?.addEventListener('change', () => {
-             const v = !!el('transform-global-enabled-outbound')?.checked;
-             if (el('transform-global-enabled-inbound')) el('transform-global-enabled-inbound').checked = v;
-           });
-           el('transform-global-enabled-inbound')?.addEventListener('change', () => {
-             const v = !!el('transform-global-enabled-inbound')?.checked;
-             if (el('transform-global-enabled-outbound')) el('transform-global-enabled-outbound').checked = v;
-           });
            el('delete-header-cancel-btn')?.addEventListener('click', () => {
              pendingDeleteHeaderName = '';
              el('delete-header-modal')?.close();
@@ -2520,7 +2824,8 @@
             await saveTabChanges(currentTabName);
             updateSharedFooterState();
           });
-          el('shared-revert-btn')?.addEventListener('click', async () => {
+          el('shared-revert-link')?.addEventListener('click', async (evt) => {
+            evt.preventDefault();
             if (!currentTabName || !dirtyTabs.has(currentTabName)) return;
             await discardTabChanges(currentTabName);
             updateSharedFooterState();

@@ -552,22 +552,35 @@ async function handleKeysStatusGet(env) {
     let primaryCreatedAt = parseMs(state.primaryCreatedAt);
     let secondaryCreatedAt = parseMs(state.secondaryCreatedAt);
     const oldExpiresAt = parseMs(state.oldExpiresAt);
-    const secondaryActive = !!state.old && oldExpiresAt > now;
+    const isAdminKey = kind === "admin";
+    let secondaryActive = !!state.old && oldExpiresAt > now;
     if (state.current && !primaryCreatedAt) {
       primaryCreatedAt = now;
       cleanup.push(secretStore(env).put(state.cfg.primaryCreatedAt, String(primaryCreatedAt)));
     }
-    if (!state.old) {
+    if (isAdminKey) {
+      // Admin key rotation is atomic: never keep overlap/secondary admin key material.
+      secondaryActive = false;
+      secondaryCreatedAt = 0;
+      if (state.old || oldExpiresAt || parseMs(state.secondaryCreatedAt)) {
+        cleanup.push(
+          secretStore(env).delete(state.cfg.old),
+          secretStore(env).delete(state.cfg.oldExpiresAt),
+          secretStore(env).delete(state.cfg.secondaryCreatedAt)
+        );
+      }
+    } else if (!state.old) {
       secondaryCreatedAt = 0;
     } else if (!secondaryCreatedAt) {
       secondaryCreatedAt = now;
       cleanup.push(secretStore(env).put(state.cfg.secondaryCreatedAt, String(secondaryCreatedAt)));
     }
-    if (state.old && oldExpiresAt <= now) {
+    if (!isAdminKey && state.old && oldExpiresAt <= now) {
       cleanup.push(secretStore(env).delete(state.cfg.old), secretStore(env).delete(state.cfg.oldExpiresAt), secretStore(env).delete(state.cfg.secondaryCreatedAt));
       secondaryCreatedAt = 0;
     }
-    const expirySeconds = config?.apiKeyPolicy?.[keyAuthApi.keyKindConfig(kind).policyKey] ?? null;
+    const policyKey = keyAuthApi.keyKindConfig(kind).policyKey;
+    const expirySeconds = policyKey ? (config?.apiKeyPolicy?.[policyKey] ?? null) : null;
     return {
       primary_active: !!state.current,
       secondary_active: secondaryActive,

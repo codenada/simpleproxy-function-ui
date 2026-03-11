@@ -108,8 +108,6 @@ proxy_access_control:
     expiry_in_seconds: null # positive integer | null
   jwt_issuer_key:
     expiry_in_seconds: null # positive integer | null
-  admin_key:
-    expiry_in_seconds: null # positive integer | null
 
 logging:
   max_logging_session_seconds: 3600 # 1..604800

@@ -218,6 +218,55 @@ test("yaml parse/stringify and migrate behavior", async () => {
   assert.throws(() => migrateConfigToV1({}, "99"), (e) => e?.code === "UNSUPPORTED_CONFIG_SCHEMA");
 });
 
+test("unknown config keys are ignored and dropped", () => {
+  const normalized = validateAndNormalizeConfigV1({
+    proxyName: "x",
+    unknown_top_level: true,
+    targetCredentialRotation: {
+      response: {
+        ttl_path: "data.ttl",
+        expires_at_path: null,
+      },
+    },
+    transform: {
+      source_request: {
+        enabled: true,
+        unknown_nested: "drop-me",
+        rules: [
+          {
+            name: "r1",
+            expr: "$",
+            unknown_rule_key: "drop-me",
+          },
+        ],
+      },
+      target_response: {
+        enabled: true,
+        rules: [
+          {
+            name: "r2",
+            expr: "$",
+            match_status: [200],
+            unknown_rule_key: "drop-me",
+          },
+        ],
+      },
+    },
+  });
+
+  assert.equal(normalized.proxyName, "x");
+  assert.equal(Object.prototype.hasOwnProperty.call(normalized, "unknown_top_level"), false);
+  assert.equal(Object.prototype.hasOwnProperty.call(normalized.transform.source_request, "unknown_nested"), false);
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(normalized.transform.source_request.rules[0], "unknown_rule_key"),
+    false
+  );
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(normalized.transform.target_response.rules[0], "unknown_rule_key"),
+    false
+  );
+});
+
 test("createConfigApi load/save flows include bootstrap and stored schema handling", async () => {
   const kv = createKv();
   const api = createConfigService(kv);
