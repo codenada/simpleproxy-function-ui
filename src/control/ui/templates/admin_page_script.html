@@ -733,7 +733,6 @@
           else if (tabName === 'config') await configSave();
           else if (tabName === 'outbound-auth') await keyRotationSave();
           else if (tabName === 'inbound-auth') await inboundAuthSave();
-          else if (tabName === 'admin-auth') await adminAuthSave();
           else if (tabName === 'inbound-traffic-controls') await networkControlsSave();
           else if (tabName === 'outbound-transform') await saveTransformConfig('outbound');
           else if (tabName === 'inbound-transform') await saveTransformConfig('inbound');
@@ -770,11 +769,6 @@
           if (tabName === 'inbound-auth') {
             await keyRotationLoad();
             clearDirty('inbound-auth');
-            return;
-          }
-          if (tabName === 'admin-auth') {
-            await keyRotationLoad();
-            clearDirty('admin-auth');
             return;
           }
           if (tabName === 'outbound-transform' || tabName === 'inbound-transform') {
@@ -1351,9 +1345,6 @@
                 bindHeaderListToggles('headers-input');
               }
             }
-            if (name === 'admin-auth') {
-              keysRefresh();
-            }
             if (name === 'inbound-auth') {
               keyRotationLoad();
               keysRefresh();
@@ -1857,33 +1848,6 @@
             if (right !== undefined) lines.push('+ ' + right);
           }
           return lines.join('\n') || '(no changes)';
-        }
-        async function adminAuthSave() {
-          try {
-            const current = await apiCall(ADMIN_ROOT + '/key-rotation-config', 'GET');
-            const d = current?.data || {};
-            const payload = {
-              enabled: !!d.enabled,
-              strategy: d.strategy || 'json_ttl',
-              request: d.request || {},
-              key_path: d.key_path || '',
-              ttl_path: d.ttl_path ?? null,
-              ttl_unit: d.ttl_unit || 'seconds',
-              expires_at_path: d.expires_at_path ?? null,
-              refresh_skew_seconds: Number(d.refresh_skew_seconds || 0),
-              retry_once_on_401: !!d.retry_once_on_401,
-              proxy_expiry_seconds: d.proxy_expiry_seconds ?? null,
-              issuer_expiry_seconds: d.issuer_expiry_seconds ?? null,
-              static_header_key: d.static_header_key ?? null,
-              static_header_value: d.static_header_value ?? null,
-            };
-            const out = await apiCall(ADMIN_ROOT + '/key-rotation-config', 'PUT', payload);
-            setOutput('admin-keys-output', out);
-            await keysRefresh();
-            clearDirty('admin-auth');
-          } catch (e) {
-            setOutput('admin-keys-output', String(e.message || e));
-          }
         }
         function setOutboundAuthEnabled(enabled) {
           const on = !!enabled;
@@ -2488,7 +2452,6 @@
             setAdminRotateResultStatus('The old key is no longer valid. This key will not be shown again. Please copy and save.', 'ok');
             setAdminRotateResultControls(false, true);
             setOutput('keys-output', out);
-            setOutput('admin-keys-output', out);
             adminRotateCompleted = true;
           } catch (e) {
             setAdminRotateResultStatus(String(e.message || e), 'error');
@@ -2588,7 +2551,6 @@
             'footer-save-outbound-transform',
             'footer-save-inbound-transform',
             'footer-save-inbound-auth',
-            'footer-save-admin-auth',
           ].forEach((id) => {
             const node = el(id);
             if (node) node.style.display = 'none';
@@ -2926,7 +2888,6 @@
             keysRefresh();
           });
           el('footer-save-inbound-auth')?.addEventListener('click', inboundAuthSave);
-          el('footer-save-admin-auth')?.addEventListener('click', adminAuthSave);
           el('shared-save-btn')?.addEventListener('click', async () => {
             if (!currentTabName || !dirtyTabs.has(currentTabName)) return;
             await saveTabChanges(currentTabName);

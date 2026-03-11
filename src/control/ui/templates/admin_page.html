@@ -33,9 +33,8 @@
           <button type="button" class="tab-btn tab-child" data-tab="inbound-transform">Request Transformations</button>
           <button type="button" class="tab-btn tab-child" data-tab="outbound-transform">Response Transformations</button>
           <div style="margin-top:6px;font-size:12px;color:#64748b;font-weight:700;text-transform:uppercase;">Authorization</div>
-          <button type="button" class="tab-btn tab-child" data-tab="inbound-auth">Source Auth</button>
+          <button type="button" class="tab-btn tab-child" data-tab="inbound-auth">API Keys</button>
           <button type="button" class="tab-btn tab-child" data-tab="outbound-auth">Target Auth</button>
-          <button type="button" class="tab-btn tab-child" data-tab="admin-auth">Admin Auth</button>
            <div style="margin-top:6px;font-size:12px;color:#64748b;font-weight:700;text-transform:uppercase;">Advanced</div>
            <button type="button" class="tab-btn tab-child" data-tab="inbound-traffic-controls">Network Controls</button>
            <button type="button" class="tab-btn tab-child" data-tab="config">YAML Configuration</button>
@@ -171,7 +170,7 @@
           </div>
         </div>
         <div id="tab-inbound-auth" class="tab-panel" style="display:none;">
-           <p><b>Source Auth</b></p>
+           <p><b>API Keys</b></p>
            <label for="kr-proxy-expiry" style="display:block;margin:10px 0 4px;">Proxy Key Expiration</label>
            <select id="kr-proxy-expiry" style="width:100%;max-width:240px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;">
              <option value="">Never expires</option>
@@ -270,13 +269,7 @@
                <button type="button" id="rotate-issuer-btn">Rotate issuer key</button>
              </div>
            </div>
-          <div style="margin-top:14px;border-top:1px solid #e2e8f0;padding-top:10px;display:flex;justify-content:flex-end;">
-            <button type="button" id="footer-save-inbound-auth" style="background:#0f172a;color:#fff;border:1px solid #0f172a;padding:8px 14px;border-radius:8px;">Save</button>
-          </div>
-        </div>
-        <div id="tab-admin-auth" class="tab-panel" style="display:none;">
-           <p><b>Admin Auth</b></p>
-           <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;"></div>
+           <hr style="margin:12px 0;border:none;border-top:1px solid #e2e8f0;" />
            <div style="display:flex;align-items:center;gap:8px;margin:10px 0 6px;">
              <b>Admin Key Status</b>
              <a href="#" id="keys-refresh-link-admin">Check latest status</a>
@@ -286,7 +279,7 @@
              <button type="button" id="rotate-admin-btn">Rotate admin key</button>
            </div>
           <div style="margin-top:14px;border-top:1px solid #e2e8f0;padding-top:10px;display:flex;justify-content:flex-end;">
-            <button type="button" id="footer-save-admin-auth" style="background:#0f172a;color:#fff;border:1px solid #0f172a;padding:8px 14px;border-radius:8px;">Save</button>
+            <button type="button" id="footer-save-inbound-auth" style="background:#0f172a;color:#fff;border:1px solid #0f172a;padding:8px 14px;border-radius:8px;">Save</button>
           </div>
         </div>
         <div id="tab-inbound-traffic-controls" class="tab-panel" style="display:none;">
