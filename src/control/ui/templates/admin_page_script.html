@@ -2272,12 +2272,16 @@
               setHtml('headers-list', '');
             } else {
               const rows = names.map((name) =>
-                '<tr>'
-                + '<td style="padding:6px 8px;border-bottom:1px solid #eee;">' + name + '</td>'
-                + '<td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;">'
-                + '<a href="#" class="delete-header-btn" data-name="' + name + '">Delete</a>'
-                + '</td>'
-                + '</tr>'
+                (() => {
+                  const safeName = htmlEscape(String(name || ''));
+                  const safeAttr = encodeURIComponent(String(name || ''));
+                  return '<tr>'
+                    + '<td style="padding:6px 8px;border-bottom:1px solid #eee;word-break:break-word;">' + safeName + '</td>'
+                    + '<td style="padding:6px 8px;border-bottom:1px solid #eee;text-align:right;">'
+                    + '<a href="#" class="delete-header-btn" data-name="' + safeAttr + '">Delete</a>'
+                    + '</td>'
+                    + '</tr>';
+                })()
               );
               setHtml('headers-list',
                 '<table style="width:100%;border-collapse:collapse;">'
@@ -2774,7 +2778,9 @@
             const target = evt.target?.closest ? evt.target.closest('.delete-header-btn') : null;
             if (!target) return;
             evt.preventDefault();
-            const name = target.getAttribute('data-name') || '';
+            const encoded = target.getAttribute('data-name') || '';
+            let name = '';
+            try { name = decodeURIComponent(encoded); } catch { name = encoded; }
             promptDeleteHeader(name);
           });
            el('outbound-add-rule-btn')?.addEventListener('click', () => {
