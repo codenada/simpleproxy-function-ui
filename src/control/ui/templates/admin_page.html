@@ -52,10 +52,6 @@
             style="width:100%;max-width:620px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;margin-bottom:10px;" />
           <hr style="margin:12px 0;border:none;border-top:1px solid #e2e8f0;" />
           <p><b>Target Auth</b></p>
-          <label style="display:flex;gap:8px;align-items:center;margin:8px 0 10px;">
-            <input id="outbound-auth-enabled" type="checkbox" />
-            <span>Enabled</span>
-          </label>
           <div id="outbound-auth-fields">
           <label for="kr-strategy" style="display:block;margin:10px 0 4px;">Authentication Type</label>
           <select id="kr-strategy" style="width:100%;max-width:420px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;">
@@ -65,6 +61,7 @@
             <option value="json_ttl">Generic TTL Rotation</option>
           </select>
 
+          <div id="outbound-auth-detail-fields">
           <p style="margin:10px 0 6px;"><b>Request</b></p>
           <div id="kr-request-form"></div>
 
@@ -94,6 +91,7 @@
           <label for="kr-retry-on-401" style="display:block;margin:10px 0 4px;">Retry Once On 401</label>
           <input id="kr-retry-on-401" type="checkbox" />
           </div>
+          </div>
         </div>
         <div id="tab-debug" class="tab-panel" style="display:none;">
            <p><b>Logging controls</b></p>
@@ -117,10 +115,13 @@
            <p style="margin-top:10px;"><a href="#" id="debug-refresh-trace-link">Refresh</a></p>
            <p style="margin-top:8px;"><a href="#" id="launch-live-log-link" style="color:#0f172a;opacity:1;text-decoration:underline;">Launch live logging</a></p>
            <p style="margin-top:16px;"><b>External Logging Configuration</b></p>
-           <label style="display:flex;gap:8px;align-items:center;margin:8px 0 6px;">
-             <input id="logging-config-enabled" type="checkbox" />
-             <span>Use external logging endpoint</span>
-           </label>
+           <label for="logging-auth-mode" style="display:block;margin:8px 0 4px;">Authentication Type</label>
+           <select id="logging-auth-mode" style="width:100%;max-width:260px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;">
+             <option value="none">None</option>
+             <option value="static">Static</option>
+             <option value="oauth_client_credentials">OAuth</option>
+             <option value="key_rotation">Generic TTL Rotation</option>
+           </select>
            <div id="logging-config-fields" style="display:none;">
              <p style="margin:10px 0 6px;"><b>Logging Request</b></p>
              <div id="logging-request-form"></div>
@@ -194,25 +195,19 @@
              <button type="button" id="rotate-proxy-btn">Rotate proxy key</button>
            </div>
            <p><b>JSON Web Token (JWT)</b></p>
-           <label style="display:flex;gap:8px;align-items:center;margin:8px 0 10px;">
-             <input id="jwt-enabled" type="checkbox" />
-             <span>Enable JWT Authentication</span>
-           </label>
            <label for="jwt-endpoint-url" style="display:block;margin:8px 0 4px;">JWT Endpoint URL</label>
            <input id="jwt-endpoint-url" type="text" readonly
              style="width:100%;max-width:620px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc;" />
-           <div id="jwt-fields" style="display:none;">
+           <div id="jwt-fields">
              <p style="margin:10px 0 6px;"><b>Validate 3rd-Party JWTs from this proxy</b></p>
-             <label style="display:flex;gap:8px;align-items:center;margin:8px 0 6px;">
-               <input id="jwt-inbound-enabled" type="checkbox" />
-               <span>Enable</span>
-             </label>
-             <div id="jwt-inbound-fields" style="display:none;">
+             <div id="jwt-inbound-fields">
                <label for="jwt-inbound-mode" style="display:block;margin:8px 0 4px;">Verification mode</label>
                <select id="jwt-inbound-mode" style="width:100%;max-width:220px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;">
+                 <option value="none">none</option>
                  <option value="shared_secret">shared_secret</option>
                  <option value="jwks">jwks</option>
                </select>
+               <div id="jwt-inbound-detail-fields">
                <div id="jwt-inbound-shared-note" style="font-size:12px;color:#64748b;margin-top:4px;">Shared secret uses the issuer key (HS256).</div>
                <label for="jwt-inbound-header" style="display:block;margin:8px 0 4px;">JWT header name</label>
                <input id="jwt-inbound-header" type="text" placeholder="Authorization"
@@ -234,12 +229,14 @@
                <label for="jwt-inbound-skew" style="display:block;margin:8px 0 4px;">Clock skew seconds</label>
                <input id="jwt-inbound-skew" type="text" placeholder="0"
                  style="width:100%;max-width:160px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />
+               </div>
              </div>
              <p style="margin:10px 0 6px;"><b>Issue JWTs from this proxy</b></p>
-             <label style="display:flex;gap:8px;align-items:center;margin:8px 0 6px;">
-               <input id="jwt-outbound-enabled" type="checkbox" />
-               <span>Enable</span>
-             </label>
+             <label for="jwt-outbound-mode" style="display:block;margin:8px 0 4px;">Signing mode</label>
+             <select id="jwt-outbound-mode" style="width:100%;max-width:220px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;">
+               <option value="none">none</option>
+               <option value="hs256">hs256</option>
+             </select>
              <div id="jwt-outbound-fields" style="display:none;">
                <div style="font-size:12px;color:#64748b;margin-top:4px;">Target signing uses the issuer key (HS256).</div>
                <label for="jwt-outbound-header" style="display:block;margin:8px 0 4px;">JWT header name</label>
@@ -452,12 +449,19 @@
          </p>
          <pre id="live-log-output" style="margin-top:0;padding:12px;border:1px solid #ddd;border-radius:8px;white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;"></pre>
        </dialog>
-       <dialog id="api-error-modal" style="max-width:820px;width:92vw;border:1px solid #e2e8f0;border-radius:10px;padding:16px;">
-         <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
-           <p style="margin:0;"><b>API Request Error</b></p>
-           <button type="button" id="api-error-close-btn">Close</button>
-         </div>
-         <pre id="api-error-output" style="margin-top:10px;padding:12px;border:1px solid #ddd;border-radius:8px;white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;"></pre>
-       </dialog>
+      <dialog id="api-error-modal" style="max-width:820px;width:92vw;border:1px solid #e2e8f0;border-radius:10px;padding:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+          <p style="margin:0;"><b>API Request Error</b></p>
+          <button type="button" id="api-error-close-btn">Close</button>
+        </div>
+        <pre id="api-error-output" style="margin-top:10px;padding:12px;border:1px solid #ddd;border-radius:8px;white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;"></pre>
+      </dialog>
+      <dialog id="config-diff-modal" style="max-width:900px;width:92vw;border:1px solid #e2e8f0;border-radius:10px;padding:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+          <p style="margin:0;"><b>YAML Diff (debug_mode=true)</b></p>
+          <button type="button" id="config-diff-close-btn">Close</button>
+        </div>
+        <pre id="config-diff-output" style="margin-top:10px;padding:12px;border:1px solid #ddd;border-radius:8px;white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;"></pre>
+      </dialog>
 <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>
 {{admin_page_script_html}}

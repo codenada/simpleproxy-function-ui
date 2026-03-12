@@ -986,26 +986,17 @@
           if (el('proxy-subtitle')) el('proxy-subtitle').textContent = subtitle;
           if (el('login-fqdn')) el('login-fqdn').textContent = host + (name ? ' (' + name + ')' : '');
         }
-        function setJwtEnabled(enabled) {
-          const on = !!enabled;
-          if (el('jwt-enabled')) el('jwt-enabled').checked = on;
-          if (el('jwt-fields')) el('jwt-fields').style.display = on ? 'block' : 'none';
-        }
-        function setJwtInboundEnabled(enabled) {
-          const on = !!enabled;
-          if (el('jwt-inbound-enabled')) el('jwt-inbound-enabled').checked = on;
-          if (el('jwt-inbound-fields')) el('jwt-inbound-fields').style.display = on ? 'block' : 'none';
-        }
-        function setJwtOutboundEnabled(enabled) {
-          const on = !!enabled;
-          if (el('jwt-outbound-enabled')) el('jwt-outbound-enabled').checked = on;
-          if (el('jwt-outbound-fields')) el('jwt-outbound-fields').style.display = on ? 'block' : 'none';
-        }
         function updateJwtModeFields(modeValue) {
-          const mode = String(modeValue || 'shared_secret');
+          const mode = String(modeValue || 'none');
           if (el('jwt-inbound-mode')) el('jwt-inbound-mode').value = mode;
+          if (el('jwt-inbound-detail-fields')) el('jwt-inbound-detail-fields').style.display = mode === 'none' ? 'none' : 'block';
           if (el('jwt-inbound-jwks-fields')) el('jwt-inbound-jwks-fields').style.display = mode === 'jwks' ? 'block' : 'none';
           if (el('jwt-inbound-shared-note')) el('jwt-inbound-shared-note').style.display = mode === 'shared_secret' ? 'block' : 'none';
+        }
+        function setJwtOutboundMode(modeValue) {
+          const mode = String(modeValue || 'none');
+          if (el('jwt-outbound-mode')) el('jwt-outbound-mode').value = mode;
+          if (el('jwt-outbound-fields')) el('jwt-outbound-fields').style.display = mode === 'none' ? 'none' : 'block';
         }
         function normalizeOptionalString(value) {
           const v = String(value || '').trim();
@@ -1025,10 +1016,10 @@
             const inbound = jwt.inbound || {};
             const outbound = jwt.outbound || {};
             const jwtInboundTs = config?.http_auth?.profiles?.jwt_inbound?.timestamp_format || 'epoch_ms';
-            setJwtEnabled(jwt.enabled !== false);
-            setJwtInboundEnabled(!!inbound.enabled);
-            setJwtOutboundEnabled(!!outbound.enabled);
-            updateJwtModeFields(inbound.mode || 'shared_secret');
+            const inboundMode = inbound.enabled ? (inbound.mode || 'shared_secret') : 'none';
+            const outboundMode = outbound.enabled ? 'hs256' : 'none';
+            updateJwtModeFields(inboundMode);
+            setJwtOutboundMode(outboundMode);
             if (el('jwt-inbound-header')) el('jwt-inbound-header').value = String(inbound.header || 'Authorization');
             if (el('jwt-inbound-scheme')) el('jwt-inbound-scheme').value = String(inbound.scheme || 'Bearer');
             if (el('jwt-inbound-issuer')) el('jwt-inbound-issuer').value = inbound.issuer || '';
@@ -1498,7 +1489,15 @@
          }
         async function loggingSave() {
           try {
-            const enabled = !!el('logging-config-enabled')?.checked;
+            const mode = String(el('logging-auth-mode')?.value || 'none').trim();
+            const enabled = mode !== 'none';
+            if (enabled) {
+              if (mode === 'static') setRequestAuthMode('logging-req', 'static');
+              else if (mode === 'oauth_client_credentials') setRequestAuthMode('logging-req', 'oauth_client_credentials');
+              else setRequestAuthMode('logging-req', 'key_rotation');
+            } else {
+              setRequestAuthMode('logging-req', 'none');
+            }
             const config = await fetchConfigJsonFromYaml();
             if (!config.debug) config.debug = {};
             if (enabled) {
@@ -1602,9 +1601,15 @@
               launchLink.style.pointerEvents = 'auto';
             }
             const configEnabled = !!(endpointRequest && endpointRequest.url);
-            if (el('logging-config-enabled')) el('logging-config-enabled').checked = configEnabled;
-            if (el('logging-config-fields')) el('logging-config-fields').style.display = configEnabled ? 'block' : 'none';
-            if (el('logging-secret-wrap')) el('logging-secret-wrap').style.display = configEnabled ? 'block' : 'none';
+            let loggingAuthMode = 'none';
+            if (configEnabled) {
+              const authType = String(endpointRequest?.authorization?.type || '').trim();
+              if (authType === 'static') loggingAuthMode = 'static';
+              else if (authType === 'key_rotation') loggingAuthMode = 'key_rotation';
+            }
+            if (el('logging-auth-mode')) el('logging-auth-mode').value = loggingAuthMode;
+            if (el('logging-config-fields')) el('logging-config-fields').style.display = loggingAuthMode === 'none' ? 'none' : 'block';
+            if (el('logging-secret-wrap')) el('logging-secret-wrap').style.display = loggingAuthMode === 'none' ? 'none' : 'block';
             if (liveLogModalOpen) {
               if (d.enabled) {
                 setLiveLogStatus('Logging is enabled. Connecting...', 'ok');
@@ -1688,10 +1693,22 @@
             return;
           }
           try {
-            if (UI_DEBUG) {
-              const prev = await apiCall(ADMIN_ROOT + '/config', 'GET', undefined, true);
-              if (typeof prev === 'string') {
-                console.log('[config diff]', diffText(prev, yaml));
+            const nextParsed = parseConfigYamlText(yaml);
+            const debugModeEnabled = nextParsed?.debug_mode === true;
+            let previousYaml = null;
+            if (UI_DEBUG || debugModeEnabled) {
+              previousYaml = await apiCall(ADMIN_ROOT + '/config', 'GET', undefined, true);
+            }
+            if (UI_DEBUG && typeof previousYaml === 'string') {
+              console.log('[config diff]', diffText(previousYaml, yaml));
+            }
+            if (debugModeEnabled && typeof previousYaml === 'string') {
+              try {
+                const previousParsed = parseConfigYamlText(previousYaml);
+                const diffLines = buildObjectDiffLines(previousParsed, nextParsed);
+                showConfigDiffModal(diffLines.join('\n') || '(no changes)');
+              } catch {
+                showConfigDiffModal('Unable to compute object diff from previous YAML.');
               }
             }
             const res = await fetch(ADMIN_ROOT + '/config', {
@@ -1781,7 +1798,7 @@
         async function keyRotationSave(dirtyTabToClear) {
           try {
             const selectedStrategy = String(el('kr-strategy')?.value || 'json_ttl').trim();
-            const outboundAuthEnabled = selectedStrategy !== 'none' && !!el('outbound-auth-enabled')?.checked;
+            const outboundAuthEnabled = selectedStrategy !== 'none';
             const normalizedStrategy = selectedStrategy === 'oauth_client_credentials' ? 'oauth_client_credentials' : 'json_ttl';
              const req = readRequestForm('kr');
              await persistRequestAuthSecret('kr');
@@ -1820,10 +1837,11 @@
         async function inboundAuthSave() {
           try {
             const config = await fetchConfigJsonFromYaml();
-            const jwtEnabled = !!el('jwt-enabled')?.checked;
-            const inboundEnabled = !!el('jwt-inbound-enabled')?.checked;
-            const outboundEnabled = !!el('jwt-outbound-enabled')?.checked;
-            const inboundMode = el('jwt-inbound-mode')?.value || 'shared_secret';
+            const inboundMode = String(el('jwt-inbound-mode')?.value || 'none');
+            const outboundMode = String(el('jwt-outbound-mode')?.value || 'none');
+            const inboundEnabled = inboundMode !== 'none';
+            const outboundEnabled = outboundMode !== 'none';
+            const jwtEnabled = inboundEnabled || outboundEnabled;
             const jwksRequest = readRequestForm('jwt-jwks');
             if (inboundMode === 'jwks') {
               await persistRequestAuthSecret('jwt-jwks');
@@ -1832,7 +1850,7 @@
               enabled: jwtEnabled,
               inbound: {
                 enabled: inboundEnabled,
-                mode: inboundMode,
+                mode: inboundEnabled ? inboundMode : 'shared_secret',
                 header: normalizeOptionalString(el('jwt-inbound-header')?.value) || 'Authorization',
                 scheme: normalizeOptionalString(el('jwt-inbound-scheme')?.value),
                 issuer: normalizeOptionalString(el('jwt-inbound-issuer')?.value),
@@ -1911,9 +1929,42 @@
           }
           return lines.join('\n') || '(no changes)';
         }
+        function isPlainObject(value) {
+          return !!value && typeof value === 'object' && !Array.isArray(value);
+        }
+        function buildObjectDiffLines(previousValue, nextValue, path = '') {
+          const lines = [];
+          if (isPlainObject(previousValue) && isPlainObject(nextValue)) {
+            const keys = new Set([...Object.keys(previousValue), ...Object.keys(nextValue)]);
+            Array.from(keys).sort().forEach((key) => {
+              const childPath = path ? (path + '.' + key) : key;
+              lines.push(...buildObjectDiffLines(previousValue[key], nextValue[key], childPath));
+            });
+            return lines;
+          }
+          const prevJson = JSON.stringify(previousValue);
+          const nextJson = JSON.stringify(nextValue);
+          if (prevJson === nextJson) return lines;
+          const label = path || '(root)';
+          if (previousValue === undefined) lines.push('+ ' + label + ' = ' + nextJson);
+          else if (nextValue === undefined) lines.push('- ' + label + ' = ' + prevJson);
+          else lines.push('~ ' + label + ': ' + prevJson + ' -> ' + nextJson);
+          return lines;
+        }
+        function showConfigDiffModal(diffTextValue) {
+          const modal = el('config-diff-modal');
+          const output = el('config-diff-output');
+          if (output) output.textContent = String(diffTextValue || '(no changes)');
+          if (modal && typeof modal.showModal === 'function') {
+            if (!modal.open) modal.showModal();
+          }
+        }
         function setOutboundAuthEnabled(enabled) {
           const on = !!enabled;
-          if (el('outbound-auth-enabled')) el('outbound-auth-enabled').checked = on;
+          if (el('outbound-auth-detail-fields')) {
+            el('outbound-auth-detail-fields').style.display = on ? 'block' : 'none';
+            return;
+          }
           if (el('outbound-auth-fields')) el('outbound-auth-fields').style.display = on ? 'block' : 'none';
         }
         function syncKrStrategyToRequestAuth() {
@@ -2662,6 +2713,7 @@
           if (el('logging-request-form')) {
             setHtml('logging-request-form', renderRequestForm('logging-req', {
               enableHttpAuthorization: true,
+              hideAuthTypeSelector: true,
               fixedKeyRotationProfile: 'logging',
             }));
             bindRequestFormToggles('logging-req');
@@ -2750,6 +2802,15 @@
             const modal = el('api-error-modal');
             if (modal?.open) modal.close();
           });
+          el('config-diff-close-btn')?.addEventListener('click', () => {
+            const modal = el('config-diff-modal');
+            if (modal?.open) modal.close();
+          });
+          el('config-diff-modal')?.addEventListener('cancel', (evt) => {
+            evt.preventDefault();
+            const modal = el('config-diff-modal');
+            if (modal?.open) modal.close();
+          });
           el('admin-rotate-confirm-cancel-btn')?.addEventListener('click', () => {
             const modal = el('admin-rotate-confirm-modal');
             if (modal?.open) modal.close();
@@ -2800,9 +2861,21 @@
               debugDisable();
             }
           });
-          el('logging-config-enabled')?.addEventListener('change', () => {
-            const enabled = !!el('logging-config-enabled')?.checked;
-            if (el('logging-config-fields')) el('logging-config-fields').style.display = enabled ? 'block' : 'none';
+          el('logging-auth-mode')?.addEventListener('change', () => {
+            const mode = String(el('logging-auth-mode')?.value || 'none');
+            if (mode === 'none') {
+              setRequestAuthMode('logging-req', 'none');
+              if (el('logging-config-fields')) el('logging-config-fields').style.display = 'none';
+              if (el('logging-secret-wrap')) el('logging-secret-wrap').style.display = 'none';
+              return;
+            }
+            if (mode === 'static') setRequestAuthMode('logging-req', 'static');
+            else if (mode === 'oauth_client_credentials') {
+              applyAuthTypePreset('logging-req', String(el('logging-req-auth-type')?.value || 'none'), 'oauth_client_credentials');
+              setRequestAuthMode('logging-req', 'oauth_client_credentials');
+            } else setRequestAuthMode('logging-req', 'key_rotation');
+            if (el('logging-config-fields')) el('logging-config-fields').style.display = 'block';
+            if (el('logging-secret-wrap')) el('logging-secret-wrap').style.display = 'block';
           });
            el('logging-open-config-link')?.addEventListener('click', (evt) => {
              evt.preventDefault();
@@ -2826,23 +2899,14 @@
             setOutput('config-output', 'YAML editor unlocked. Changes are not saved until you click Save.');
           });
           el('footer-save-config')?.addEventListener('click', configSave);
-           el('outbound-auth-enabled')?.addEventListener('change', () => {
-             setOutboundAuthEnabled(!!el('outbound-auth-enabled')?.checked);
-           });
           el('kr-strategy')?.addEventListener('change', () => {
             syncKrStrategyToRequestAuth();
           });
-          el('jwt-enabled')?.addEventListener('change', () => {
-            setJwtEnabled(!!el('jwt-enabled')?.checked);
-          });
-          el('jwt-inbound-enabled')?.addEventListener('change', () => {
-            setJwtInboundEnabled(!!el('jwt-inbound-enabled')?.checked);
-          });
-          el('jwt-outbound-enabled')?.addEventListener('change', () => {
-            setJwtOutboundEnabled(!!el('jwt-outbound-enabled')?.checked);
-          });
           el('jwt-inbound-mode')?.addEventListener('change', () => {
-            updateJwtModeFields(el('jwt-inbound-mode')?.value || 'shared_secret');
+            updateJwtModeFields(el('jwt-inbound-mode')?.value || 'none');
+          });
+          el('jwt-outbound-mode')?.addEventListener('change', () => {
+            setJwtOutboundMode(el('jwt-outbound-mode')?.value || 'none');
           });
           el('inbound-header-filtering-mode')?.addEventListener('change', () => {
             updateInboundHeaderFilteringHelp(el('inbound-header-filtering-mode')?.value || 'blacklist');
@@ -2995,9 +3059,6 @@
             if (!currentTabName || !dirtyTabs.has(currentTabName)) return;
             await discardTabChanges(currentTabName);
             updateSharedFooterState();
-          });
-          el('jwt-enabled')?.addEventListener('change', () => {
-            setJwtEnabled(!!el('jwt-enabled')?.checked);
           });
            el('rotate-proxy-btn')?.addEventListener('click', rotateProxy);
            el('rotate-issuer-btn')?.addEventListener('click', rotateIssuer);
