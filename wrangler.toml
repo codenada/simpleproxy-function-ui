@@ -1,4 +1,4 @@
-name = "simpleproxy-function-ui"
+name = "simpleproxy-function-ui-15"
 main = "src/control/control_entry.js"
 compatibility_date = "2026-03-01"
 workers_dev = true
