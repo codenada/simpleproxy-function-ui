@@ -502,6 +502,33 @@
     );
     const availableSecretRefs = ['secret1', 'secret2'].filter((slot) => !!secretStatus[slot]);
 
+    function readGeneralRequestDraft() {
+      return {
+        method: String(reqMethod || 'POST').toUpperCase(),
+        url: String(reqUrl || ''),
+        headersText: String(reqHeaders || ''),
+        bodyText: String(reqBodyType || 'none') === 'none' ? '' : String(reqBody || ''),
+        authType: strategy === 'none' ? 'none' : (strategy === 'static' ? 'static' : 'advanced'),
+        authHeaderName: String(authHeaderName || 'Authorization'),
+        authSecretRef: String(authSecretRef || ''),
+      };
+    }
+
+    function setGeneralRequestDraft(updater) {
+      const prev = readGeneralRequestDraft();
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      setReqMethod(String(next?.method || 'POST').toUpperCase());
+      setReqUrl(String(next?.url || ''));
+      setReqHeaders(String(next?.headersText || ''));
+      setReqBody(String(next?.bodyText || ''));
+      const parsedBody = parseRequestTemplateBody(next?.bodyText || '');
+      setReqBodyType(String(parsedBody.body_type || 'none'));
+      const nextAuthType = String(next?.authType || 'none');
+      setStrategy(nextAuthType === 'none' ? 'none' : (nextAuthType === 'static' ? 'static' : 'advanced'));
+      setAuthHeaderName(String(next?.authHeaderName || 'Authorization'));
+      setAuthSecretRef(String(next?.authSecretRef || ''));
+    }
+
     function applyDebugState(payload) {
       const data = payload?.data || {};
       const enabled = !!data.enabled;
@@ -1008,22 +1035,11 @@
           else if (reqAuthType === 'static') setStrategy('static');
           else setStrategy('advanced');
 
-          setReqMethod(String(req.method || 'POST').toUpperCase());
-          setReqUrl(String(req.url || ''));
-          setReqHeaders(headersObjToText(req.headers || {}));
-          if (req.body && req.body.type === 'raw') {
-            setReqBodyType('raw');
-            setReqBody(String(req.body.raw || ''));
-          } else if (req.body && req.body.type === 'none') {
-            setReqBodyType('none');
-            setReqBody('');
-          } else {
-            setReqBodyType('json');
-            setReqBody(JSON.stringify((req.body && req.body.value) || {}, null, 2));
-          }
-          setAuthType(reqAuthType || 'none');
-          setAuthHeaderName(String(req?.authorization?.header_name || 'Authorization'));
-          setAuthSecretRef(String(req?.authorization?.secret_ref || 'secret1'));
+          const requestDraft = requestTemplateToDraft(req, 'POST');
+          if (!enabled) requestDraft.authType = 'none';
+          else if (reqAuthType === 'static') requestDraft.authType = 'static';
+          else requestDraft.authType = 'advanced';
+          setGeneralRequestDraft(requestDraft);
           setKeyPath(String(d.key_path || 'data.apiKey'));
           setTtlPath(d.ttl_path == null ? '' : String(d.ttl_path));
           setTtlUnit(String(d.ttl_unit || 'seconds'));
@@ -1405,24 +1421,23 @@
         await putYaml('/config', nextYaml);
         setYamlText(nextYaml);
 
-        const request = {
-          method: String(reqMethod || 'POST').toUpperCase(),
-          url: String(reqUrl || '').trim(),
-          headers: headersTextToObj(reqHeaders),
-          body: readBody(reqBodyType, reqBody),
-        };
+        const requestDraft = readGeneralRequestDraft();
+        const request = requestTemplateDraftToPayload(requestDraft, 'target');
         if (strategy === 'none') {
           request.authorization = { type: 'none' };
         } else if (strategy === 'static') {
-          const chosenRef = String(authSecretRef || '').trim();
+          const chosenRef = String(requestDraft.authSecretRef || '').trim();
           if (!chosenRef) throw new Error('Set at least one secret slot, then select it for static auth.');
-          request.authorization = {
-            type: 'static',
-            header_name: String(authHeaderName || 'Authorization').trim() || 'Authorization',
-            secret_ref: chosenRef,
-          };
+          request.authorization = requestTemplateDraftToPayload({
+            ...requestDraft,
+            authType: 'static',
+            authSecretRef: chosenRef,
+          }, 'target').authorization;
         } else {
-          request.authorization = { type: String(authType || 'oauth_client_credentials') };
+          request.authorization = requestTemplateDraftToPayload({
+            ...requestDraft,
+            authType: 'advanced',
+          }, 'target').authorization;
         }
 
         const payload = {

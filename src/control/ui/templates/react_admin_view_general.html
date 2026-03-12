@@ -1,6 +1,6 @@
 const generalView = e('div', {},
   e('h1', { className: 'ra-title' }, 'General'),
-  e('p', { className: 'ra-sub' }, 'React migration of legacy General tab.'),
+  e('p', { className: 'ra-sub' }, 'React migration of legacy General tab. Configure target auth and rotation using the shared HTTP request template.'),
   renderOverviewStatus(),
   e('div', { className: 'ra-card' },
     e('label', { className: 'ra-field', htmlFor: 'ra-proxy-name' }, 'Proxy name'),
@@ -9,12 +9,6 @@ const generalView = e('div', {},
     e('input', { id: 'ra-target-host', className: 'ra-input', value: targetHost, onChange: (ev) => setTargetHost(ev.target.value), placeholder: 'https://api.example.com' }),
     e('hr', { className: 'ra-hr' }),
     e('p', { style: { margin: '0 0 8px 0', fontSize: '18px', fontWeight: 700 } }, 'Target Auth'),
-    e('label', { className: 'ra-field', htmlFor: 'ra-strategy' }, 'Authentication Type'),
-    e('select', { id: 'ra-strategy', className: 'ra-select', value: strategy, onChange: (ev) => setStrategy(ev.target.value) },
-      e('option', { value: 'none' }, 'None'),
-      e('option', { value: 'static' }, 'Static'),
-      e('option', { value: 'advanced' }, 'Advanced (OAuth/Rotation)')
-    ),
     strategy !== 'none' ? e('div', {},
       e('p', { style: { margin: '12px 0 6px', fontWeight: 700 } }, 'Authentication secrets'),
       e('div', { className: 'ra-secret-list' },
@@ -92,69 +86,35 @@ const generalView = e('div', {},
           ) : null
           );
         })
+      )
+    ) : null,
+    renderRequestTemplateForm({
+      idPrefix: 'ra-general-req',
+      draft: readGeneralRequestDraft(),
+      setDraft: setGeneralRequestDraft,
+      enableAuth: true,
+      fixedAdvancedProfile: 'target',
+    }),
+    strategy === 'advanced' ? e('div', {},
+      e('p', { style: { margin: '12px 0 6px', fontWeight: 700 } }, 'Token Response'),
+      e('label', { className: 'ra-field', htmlFor: 'ra-key-path' }, 'Response Key Path'),
+      e('input', { id: 'ra-key-path', className: 'ra-input', value: keyPath, onChange: (ev) => setKeyPath(ev.target.value), placeholder: 'data.apiKey' }),
+      e('label', { className: 'ra-field', htmlFor: 'ra-ttl-path' }, 'Response TTL Path'),
+      e('input', { id: 'ra-ttl-path', className: 'ra-input', value: ttlPath, onChange: (ev) => setTtlPath(ev.target.value), placeholder: 'data.ttl' }),
+      e('label', { className: 'ra-field', htmlFor: 'ra-ttl-unit' }, 'Response TTL Unit'),
+      e('select', { id: 'ra-ttl-unit', className: 'ra-select', value: ttlUnit, onChange: (ev) => setTtlUnit(ev.target.value) },
+        e('option', { value: 'seconds' }, 'seconds'),
+        e('option', { value: 'minutes' }, 'minutes'),
+        e('option', { value: 'hours' }, 'hours')
       ),
-      e('p', { style: { margin: '12px 0 6px', fontWeight: 700 } }, 'Token Request'),
-      e('div', { className: 'ra-row' },
-        e('label', { className: 'ra-field', htmlFor: 'ra-req-method' }, 'Method'),
-        e('select', { id: 'ra-req-method', className: 'ra-select', value: reqMethod, onChange: (ev) => setReqMethod(ev.target.value) },
-          e('option', { value: 'GET' }, 'GET'),
-          e('option', { value: 'POST' }, 'POST'),
-          e('option', { value: 'PUT' }, 'PUT'),
-          e('option', { value: 'PATCH' }, 'PATCH')
-        )
-      ),
-      e('label', { className: 'ra-field', htmlFor: 'ra-req-url' }, 'URL'),
-      e('input', { id: 'ra-req-url', className: 'ra-input', value: reqUrl, onChange: (ev) => setReqUrl(ev.target.value), placeholder: 'https://...' }),
-      e('label', { className: 'ra-field', htmlFor: 'ra-req-headers' }, 'Headers'),
-      e('textarea', { id: 'ra-req-headers', className: 'ra-textarea', value: reqHeaders, onChange: (ev) => setReqHeaders(ev.target.value), placeholder: 'Header-Name: value' }),
-      e('label', { className: 'ra-field', htmlFor: 'ra-req-body-type' }, 'Request Body Type'),
-      e('select', { id: 'ra-req-body-type', className: 'ra-select', value: reqBodyType, onChange: (ev) => setReqBodyType(ev.target.value) },
-        e('option', { value: 'json' }, 'json'),
-        e('option', { value: 'raw' }, 'raw'),
-        e('option', { value: 'none' }, 'none')
-      ),
-      reqBodyType !== 'none' ? e('div', {},
-        e('label', { className: 'ra-field', htmlFor: 'ra-req-body' }, 'Request Body'),
-        e('textarea', { id: 'ra-req-body', className: 'ra-textarea', value: reqBody, onChange: (ev) => setReqBody(ev.target.value), placeholder: reqBodyType === 'json' ? '{}' : '' })
-      ) : null,
-      strategy === 'static' ? e('div', {},
-        e('label', { className: 'ra-field', htmlFor: 'ra-auth-header-name' }, 'Auth header name'),
-        e('input', { id: 'ra-auth-header-name', className: 'ra-input', value: authHeaderName, onChange: (ev) => setAuthHeaderName(ev.target.value), placeholder: 'Authorization' }),
-        e('label', { className: 'ra-field', htmlFor: 'ra-auth-secret-ref' }, 'Select secret slot'),
-        e('select', { id: 'ra-auth-secret-ref', className: 'ra-select', value: authSecretRef, onChange: (ev) => setAuthSecretRef(ev.target.value) },
-          availableSecretRefs.length
-            ? availableSecretRefs.map((slot) => e('option', { key: slot, value: slot }, slotLabel(slot, secretNames[slot])))
-            : e('option', { value: '' }, 'No saved secret slots')
-        )
-      ) : null,
-      strategy === 'advanced' ? e('div', {},
-        e('label', { className: 'ra-field', htmlFor: 'ra-auth-type' }, 'Auth Type'),
-        e('select', { id: 'ra-auth-type', className: 'ra-select', value: authType, onChange: (ev) => setAuthType(ev.target.value) },
-          e('option', { value: 'oauth_client_credentials' }, 'OAuth'),
-          e('option', { value: 'json_ttl' }, 'Generic TTL Rotation'),
-          e('option', { value: 'none' }, 'none'),
-          e('option', { value: 'static' }, 'static')
-        ),
-        e('p', { style: { margin: '12px 0 6px', fontWeight: 700 } }, 'Token Response'),
-        e('label', { className: 'ra-field', htmlFor: 'ra-key-path' }, 'Response Key Path'),
-        e('input', { id: 'ra-key-path', className: 'ra-input', value: keyPath, onChange: (ev) => setKeyPath(ev.target.value), placeholder: 'data.apiKey' }),
-        e('label', { className: 'ra-field', htmlFor: 'ra-ttl-path' }, 'Response TTL Path'),
-        e('input', { id: 'ra-ttl-path', className: 'ra-input', value: ttlPath, onChange: (ev) => setTtlPath(ev.target.value), placeholder: 'data.ttl' }),
-        e('label', { className: 'ra-field', htmlFor: 'ra-ttl-unit' }, 'Response TTL Unit'),
-        e('select', { id: 'ra-ttl-unit', className: 'ra-select', value: ttlUnit, onChange: (ev) => setTtlUnit(ev.target.value) },
-          e('option', { value: 'seconds' }, 'seconds'),
-          e('option', { value: 'minutes' }, 'minutes'),
-          e('option', { value: 'hours' }, 'hours')
-        ),
-        e('label', { className: 'ra-field', htmlFor: 'ra-expires-at-path' }, 'Response Expires-At Path'),
-        e('input', { id: 'ra-expires-at-path', className: 'ra-input', value: expiresAtPath, onChange: (ev) => setExpiresAtPath(ev.target.value), placeholder: 'data.expiresAt' }),
-        e('label', { className: 'ra-field', htmlFor: 'ra-refresh-skew' }, 'Refresh Skew Seconds'),
-        e('input', { id: 'ra-refresh-skew', className: 'ra-input', value: refreshSkew, onChange: (ev) => setRefreshSkew(ev.target.value), type: 'number', min: '0' }),
-        e('label', { style: { display: 'flex', gap: '8px', alignItems: 'center', margin: '12px 0 0' } },
-          e('input', { type: 'checkbox', checked: retry401, onChange: (ev) => setRetry401(!!ev.target.checked) }),
-          e('span', null, 'Retry Once On 401')
-        )
-      ) : null
+      e('label', { className: 'ra-field', htmlFor: 'ra-expires-at-path' }, 'Response Expires-At Path'),
+      e('input', { id: 'ra-expires-at-path', className: 'ra-input', value: expiresAtPath, onChange: (ev) => setExpiresAtPath(ev.target.value), placeholder: 'data.expiresAt' }),
+      e('label', { className: 'ra-field', htmlFor: 'ra-refresh-skew' }, 'Refresh Skew Seconds'),
+      e('input', { id: 'ra-refresh-skew', className: 'ra-input', value: refreshSkew, onChange: (ev) => setRefreshSkew(ev.target.value), type: 'number', min: '0' }),
+      e('label', { style: { display: 'flex', gap: '8px', alignItems: 'center', margin: '12px 0 0' } },
+        e('input', { type: 'checkbox', checked: retry401, onChange: (ev) => setRetry401(!!ev.target.checked) }),
+        e('span', null, 'Retry Once On 401')
+      )
     ) : null,
     e('div', { style: { marginTop: '14px', borderTop: '1px solid #e2e8f0', paddingTop: '10px', display: 'flex', gap: '8px' } },
       e('button', { className: 'ra-btn primary', onClick: saveGeneral, disabled: saving }, saving ? 'Saving...' : 'Save')
