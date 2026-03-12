@@ -56,12 +56,11 @@
           <select id="kr-strategy" style="width:100%;max-width:420px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;">
             <option value="none">None</option>
             <option value="static">Static</option>
-            <option value="oauth_client_credentials">OAuth</option>
-            <option value="json_ttl">Generic TTL Rotation</option>
+            <option value="advanced">Advanced (OAuth/Rotation)</option>
           </select>
 
           <div id="outbound-auth-detail-fields">
-          <p id="kr-request-heading" style="margin:10px 0 6px;"><b>Request</b></p>
+          <p id="kr-request-heading" style="margin:10px 0 6px;"><b>Token Request</b></p>
           <div id="kr-request-form"></div>
           <div id="kr-rotation-fields">
           <label for="kr-key-path" style="display:block;margin:10px 0 4px;">Response Key Path</label>
@@ -72,7 +71,7 @@
           <input id="kr-ttl-path" type="text" placeholder="data.ttl"
             style="width:100%;max-width:520px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />
 
-          <label for="kr-ttl-unit" style="display:block;margin:10px 0 4px;">TTL Unit</label>
+          <label for="kr-ttl-unit" style="display:block;margin:10px 0 4px;">Response TTL Unit</label>
           <select id="kr-ttl-unit" style="width:100%;max-width:220px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;">
             <option value="seconds">seconds</option>
             <option value="minutes">minutes</option>
@@ -119,11 +118,10 @@
            <select id="logging-auth-mode" style="width:100%;max-width:260px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;">
              <option value="none">None</option>
              <option value="static">Static</option>
-             <option value="oauth_client_credentials">OAuth</option>
-             <option value="key_rotation">Generic TTL Rotation</option>
+             <option value="advanced">Advanced (OAuth/Rotation)</option>
            </select>
            <div id="logging-config-fields" style="display:none;">
-             <p id="logging-req-request-heading" style="margin:10px 0 6px;"><b>Logging Request</b></p>
+             <p id="logging-req-request-heading" style="margin:10px 0 6px;"><b>Token Request</b></p>
              <div id="logging-request-form"></div>
              <div id="logging-secret-wrap">
                <div id="logging-secret-template"></div>
@@ -236,7 +234,7 @@
                <input id="jwt-inbound-audience" type="text" placeholder="aud"
                  style="width:100%;max-width:520px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />
               <div id="jwt-inbound-jwks-fields" style="display:none;">
-                <p id="jwt-jwks-request-heading" style="margin:8px 0 6px;"><b>JWKS Request</b></p>
+                <p id="jwt-jwks-request-heading" style="margin:8px 0 6px;"><b>Token Request</b></p>
                 <div id="jwt-jwks-request-form"></div>
               </div>
               <div id="jwt-inbound-secret-template" style="margin-top:12px;"></div>

@@ -150,14 +150,27 @@
               + htmlEscape(label) + '</span>';
           };
           return ''
-            + '<div style="margin-top:10px;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;">'
-            + '<div style="font-size:12px;color:#334155;font-weight:700;margin-bottom:6px;">Request secret slots</div>'
+            + '<div style="margin-top:10px;">'
+            + '<label style="display:block;margin:0 0 4px;">Secrets</label>'
             + '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
             + renderChip('secret1', 'Secret1')
             + renderChip('secret2', 'Secret2')
             + '</div>'
-            + '<div style="font-size:11px;color:#64748b;margin-top:4px;">Write-only slots: `secret1` and `secret2`.</div>'
+            + '<div style="font-size:11px;color:#64748b;margin-top:4px;">Exposed as variables ${secret1} and ${secret2}.</div>'
             + '</div>';
+        }
+        function normalizeUiAuthType(value) {
+          const raw = String(value || 'none').trim();
+          if (!raw || raw === 'none') return 'none';
+          if (raw === 'static') return 'static';
+          if (raw === 'advanced' || raw === 'oauth_client_credentials' || raw === 'key_rotation') return 'advanced';
+          return 'none';
+        }
+        function uiAuthTypeToBackend(value) {
+          const mode = normalizeUiAuthType(value);
+          if (mode === 'static') return 'static';
+          if (mode === 'advanced') return 'key_rotation';
+          return 'none';
         }
         function renderRequestForm(prefix, options) {
           const verbs = Array.isArray(options?.verbs) && options.verbs.length
@@ -174,6 +187,36 @@
             .map((verb) => '<option value="' + htmlEscape(String(verb).toUpperCase()) + '">' + htmlEscape(String(verb).toUpperCase()) + '</option>')
             .join('');
           return ''
+            + (enableHttpAuthorization
+              ? ('<div style="margin-top:12px;padding-top:10px;border-top:1px solid #e2e8f0;">'
+                + (hideAuthTypeSelector
+                  ? ('<input id="' + prefix + '-auth-type" type="hidden" value="none" />')
+                  : ('<label for="' + prefix + '-auth-type" style="display:block;margin:0 0 4px;">Authentication Type</label>'
+                    + '<select id="' + prefix + '-auth-type" style="width:100%;max-width:260px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;">'
+                    + '<option value="none">None</option>'
+                    + '<option value="static">Static</option>'
+                    + '<option value="advanced">Advanced (OAuth/Rotation)</option>'
+                + '</select>'))
+                + renderRequestSecretSlotsCompact(prefix)
+                + '<div id="' + prefix + '-oauth-preset-wrap" style="margin-top:8px;display:none;">'
+                + '<button type="button" id="' + prefix + '-oauth-preset-btn"'
+                + ' style="padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#0f172a;">Fill OAuth Preset</button>'
+                + '</div>'
+                + '<div id="' + prefix + '-auth-static-wrap" style="display:none;">'
+                + '<label for="' + prefix + '-auth-header-name" style="display:block;margin:10px 0 4px;">Auth header name</label>'
+                + '<input id="' + prefix + '-auth-header-name" type="text" placeholder="Authorization"'
+                + ' style="width:100%;max-width:360px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />'
+                + '<label for="' + prefix + '-auth-secret-ref" style="display:block;margin:10px 0 4px;">Use secret slot</label>'
+                + '<select id="' + prefix + '-auth-secret-ref"'
+                + ' style="width:100%;max-width:360px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;">'
+                + '<option value="">Select secret slot</option>'
+                + '<option value="secret1">secret1</option>'
+                + '<option value="secret2">secret2</option>'
+                + '</select>'
+                + '<div style="font-size:12px;color:#64748b;margin-top:4px;">Select which saved slot to inject into the auth header.</div>'
+                + '</div>'
+                + '</div>')
+              : '')
             + '<div id="' + prefix + '-request-core-wrap">'
             + '<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">'
             + '<div style="min-width:110px;max-width:120px;flex:0 0 120px;">'
@@ -204,66 +247,30 @@
             + '<textarea id="' + prefix + '-body" rows="8" placeholder="JSON or raw text" ' + (disableBody ? 'disabled ' : '')
             + 'style="width:100%;max-width:740px;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;' + (disableBody ? 'background:#f8fafc;' : '') + '"></textarea>'
             + '</div>'
-            + '</div>'
-            + (enableHttpAuthorization
-              ? ('<div style="margin-top:12px;padding-top:10px;border-top:1px solid #e2e8f0;">'
-                + (hideAuthTypeSelector
-                  ? ('<input id="' + prefix + '-auth-type" type="hidden" value="none" />')
-                  : ('<label for="' + prefix + '-auth-type" style="display:block;margin:0 0 4px;">Authentication Type</label>'
-                    + '<select id="' + prefix + '-auth-type" style="width:100%;max-width:260px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;">'
-                    + '<option value="none">None</option>'
-                    + '<option value="static">Static</option>'
-                    + '<option value="oauth_client_credentials">OAuth</option>'
-                    + '<option value="key_rotation">Generic TTL Rotation</option>'
-                    + '</select>'))
-                + renderRequestSecretSlotsCompact(prefix)
-                + '<div id="' + prefix + '-auth-static-wrap" style="display:none;">'
-                + '<label for="' + prefix + '-auth-header-name" style="display:block;margin:10px 0 4px;">Auth header name</label>'
-                + '<input id="' + prefix + '-auth-header-name" type="text" placeholder="Authorization"'
-                + ' style="width:100%;max-width:360px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />'
-                + '<label for="' + prefix + '-auth-secret-ref" style="display:block;margin:10px 0 4px;">Use secret slot</label>'
-                + '<select id="' + prefix + '-auth-secret-ref"'
-                + ' style="width:100%;max-width:360px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;">'
-                + '<option value="">Select secret slot</option>'
-                + '<option value="secret1">secret1</option>'
-                + '<option value="secret2">secret2</option>'
-                + '</select>'
-                + '<div style="font-size:12px;color:#64748b;margin-top:4px;">Select which saved slot to inject into the auth header.</div>'
-                + '</div>'
-                + '<div id="' + prefix + '-auth-key-rotation-wrap" style="display:none;">'
-                + '<label style="display:block;margin:10px 0 4px;">Key rotation profile</label>'
-                + '<div style="width:100%;max-width:360px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;background:#f8fafc;color:#334155;">'
-                + htmlEscape(fixedKeyRotationProfile || "configured by view")
-                + '</div>'
-                + '<div style="font-size:12px;color:#64748b;margin-top:4px;">Automatically set by this view.</div>'
-                + '</div>'
-                + '</div>')
-              : '');
+            + '</div>';
         }
         function setRequestAuthMode(prefix, type) {
-          const mode = String(type || 'none');
+          const mode = normalizeUiAuthType(type);
           const requestCoreWrap = el(prefix + '-request-core-wrap');
           const requestHeading = el(prefix + '-request-heading');
+          const oauthPresetWrap = el(prefix + '-oauth-preset-wrap');
           if (el(prefix + '-auth-type')) el(prefix + '-auth-type').value = mode;
           if (el(prefix + '-auth-static-wrap')) el(prefix + '-auth-static-wrap').style.display = mode === 'static' ? 'block' : 'none';
-          if (el(prefix + '-auth-key-rotation-wrap')) {
-            el(prefix + '-auth-key-rotation-wrap').style.display =
-              (mode === 'key_rotation' || mode === 'oauth_client_credentials') ? 'block' : 'none';
-          }
+          if (oauthPresetWrap) oauthPresetWrap.style.display = mode === 'advanced' ? 'block' : 'none';
           if (requestCoreWrap) {
             requestCoreWrap.style.display =
-              (mode === 'key_rotation' || mode === 'oauth_client_credentials') ? 'block' : 'none';
+              mode === 'advanced' ? 'block' : 'none';
           }
           if (requestHeading) {
             requestHeading.style.display =
-              (mode === 'key_rotation' || mode === 'oauth_client_credentials') ? 'block' : 'none';
+              mode === 'advanced' ? 'block' : 'none';
           }
         }
         function applyAuthTypePreset(prefix, previousMode, nextMode) {
-          const prev = String(previousMode || 'none');
-          const next = String(nextMode || 'none');
+          const prev = normalizeUiAuthType(previousMode);
+          const next = normalizeUiAuthType(nextMode);
           if (prev === next) return;
-          if (next === 'oauth_client_credentials') {
+          if (next === 'advanced') {
             if (el(prefix + '-verb')) el(prefix + '-verb').value = 'POST';
             if (el(prefix + '-headers')) {
               const existing = String(el(prefix + '-headers').value || '').trim();
@@ -298,6 +305,15 @@
           };
           bind(headersToggle, headersWrap, headersHelp);
           bind(bodyToggle, bodyWrap, null);
+          const oauthPresetBtn = el(prefix + '-oauth-preset-btn');
+          if (oauthPresetBtn && oauthPresetBtn.dataset.bound !== '1') {
+            oauthPresetBtn.addEventListener('click', () => {
+              applyAuthTypePreset(prefix, 'none', 'advanced');
+              showWarning('OAuth preset applied.');
+              markDirty(activeTab);
+            });
+            oauthPresetBtn.dataset.bound = '1';
+          }
           const authType = el(prefix + '-auth-type');
           if (authType) {
             authType.dataset.previousAuthType = String(authType.value || 'none');
@@ -481,7 +497,7 @@
           }
         }
         function validateRequestAuthSecretRef(prefix) {
-          const authType = String(el(prefix + '-auth-type')?.value || '').trim();
+          const authType = normalizeUiAuthType(el(prefix + '-auth-type')?.value || '');
           if (authType !== 'static') return;
           const secretRef = String(el(prefix + '-auth-secret-ref')?.value || '').trim();
           if (secretRef && !HTTP_SECRET_REF_OPTIONS.includes(secretRef)) {
@@ -556,7 +572,7 @@
           else if (body.type === 'raw') req.body = body.raw ?? '';
           else if (body.type === 'urlencoded') req.body = body.value ?? {};
           else req.body = {};
-          const authType = String(el(prefix + '-auth-type')?.value || '').trim();
+          const authType = normalizeUiAuthType(el(prefix + '-auth-type')?.value || '');
           if (authType === 'static') {
             const headerName = String(el(prefix + '-auth-header-name')?.value || '').trim();
             const secretRef = String(el(prefix + '-auth-secret-ref')?.value || '').trim();
@@ -571,7 +587,7 @@
                 secret_ref: secretRef || null,
               },
             };
-          } else if (authType === 'key_rotation' || authType === 'oauth_client_credentials') {
+          } else if (authType === 'advanced') {
             const mappedProfile = fixedKeyRotationProfileFor(prefix);
             req.authorization = {
               type: 'key_rotation',
@@ -602,9 +618,7 @@
               ? req.authorization
               : (req.http_authorization && typeof req.http_authorization === 'object' ? req.http_authorization : null);
           let authType = auth?.type === 'static' || auth?.type === 'key_rotation' ? auth.type : 'none';
-          if (authType === 'key_rotation' && prefix === 'kr' && el('kr-strategy')?.value === 'oauth_client_credentials') {
-            authType = 'oauth_client_credentials';
-          }
+          authType = normalizeUiAuthType(authType);
           setRequestAuthMode(prefix, authType);
           if (el(prefix + '-auth-type')) {
             el(prefix + '-auth-type').dataset.previousAuthType = String(authType || 'none');
@@ -1690,12 +1704,11 @@
          }
         async function loggingSave() {
           try {
-            const mode = String(el('logging-auth-mode')?.value || 'none').trim();
+            const mode = normalizeUiAuthType(el('logging-auth-mode')?.value || 'none');
             const enabled = mode !== 'none';
             if (enabled) {
               if (mode === 'static') setRequestAuthMode('logging-req', 'static');
-              else if (mode === 'oauth_client_credentials') setRequestAuthMode('logging-req', 'oauth_client_credentials');
-              else setRequestAuthMode('logging-req', 'key_rotation');
+              else setRequestAuthMode('logging-req', 'advanced');
             } else {
               setRequestAuthMode('logging-req', 'none');
             }
@@ -1806,7 +1819,7 @@
             if (configEnabled) {
               const authType = String(endpointRequest?.authorization?.type || '').trim();
               if (authType === 'static') loggingAuthMode = 'static';
-              else if (authType === 'key_rotation') loggingAuthMode = 'key_rotation';
+              else if (authType === 'key_rotation') loggingAuthMode = 'advanced';
             }
             if (el('logging-auth-mode')) el('logging-auth-mode').value = loggingAuthMode;
             if (el('logging-config-fields')) el('logging-config-fields').style.display = loggingAuthMode === 'none' ? 'none' : 'block';
@@ -1978,7 +1991,7 @@
              if (el('kr-strategy')) {
                if (!d.enabled) el('kr-strategy').value = 'none';
                else if (String(d?.request?.authorization?.type || '') === 'static') el('kr-strategy').value = 'static';
-               else el('kr-strategy').value = d.strategy === 'oauth_client_credentials' ? 'oauth_client_credentials' : 'json_ttl';
+               else el('kr-strategy').value = 'advanced';
              }
              if (el('kr-request-form')) setRequestForm('kr', d.request || {});
              if (el('kr-key-path')) el('kr-key-path').value = String(d.key_path || '');
@@ -1998,9 +2011,9 @@
         }
         async function keyRotationSave(dirtyTabToClear) {
           try {
-            const selectedStrategy = String(el('kr-strategy')?.value || 'json_ttl').trim();
+            const selectedStrategy = String(el('kr-strategy')?.value || 'none').trim();
             const outboundAuthEnabled = selectedStrategy !== 'none';
-            const normalizedStrategy = selectedStrategy === 'oauth_client_credentials' ? 'oauth_client_credentials' : 'json_ttl';
+            const normalizedStrategy = selectedStrategy === 'advanced' ? 'oauth_client_credentials' : 'json_ttl';
              const req = readRequestForm('kr');
              validateRequestAuthSecretRef('kr');
              const payload = {
@@ -2183,13 +2196,8 @@
             if (rotationFields) rotationFields.style.display = 'none';
             return;
           }
-          if (strategy === 'oauth_client_credentials') {
-            applyAuthTypePreset('kr', String(el('kr-auth-type')?.value || 'none'), 'oauth_client_credentials');
-            setRequestAuthMode('kr', 'oauth_client_credentials');
-            if (rotationFields) rotationFields.style.display = 'block';
-            return;
-          }
-          setRequestAuthMode('kr', 'key_rotation');
+          applyAuthTypePreset('kr', String(el('kr-auth-type')?.value || 'none'), 'advanced');
+          setRequestAuthMode('kr', 'advanced');
           if (rotationFields) rotationFields.style.display = 'block';
         }
         function updateInboundHeaderFilteringHelp(modeValue) {
@@ -3099,7 +3107,7 @@
             }
           });
           el('logging-auth-mode')?.addEventListener('change', () => {
-            const mode = String(el('logging-auth-mode')?.value || 'none');
+            const mode = normalizeUiAuthType(el('logging-auth-mode')?.value || 'none');
             if (mode === 'none') {
               setRequestAuthMode('logging-req', 'none');
               if (el('logging-config-fields')) el('logging-config-fields').style.display = 'none';
@@ -3107,10 +3115,10 @@
               return;
             }
             if (mode === 'static') setRequestAuthMode('logging-req', 'static');
-            else if (mode === 'oauth_client_credentials') {
-              applyAuthTypePreset('logging-req', String(el('logging-req-auth-type')?.value || 'none'), 'oauth_client_credentials');
-              setRequestAuthMode('logging-req', 'oauth_client_credentials');
-            } else setRequestAuthMode('logging-req', 'key_rotation');
+            else {
+              applyAuthTypePreset('logging-req', String(el('logging-req-auth-type')?.value || 'none'), 'advanced');
+              setRequestAuthMode('logging-req', 'advanced');
+            }
             if (el('logging-config-fields')) el('logging-config-fields').style.display = 'block';
             if (el('logging-secret-wrap')) el('logging-secret-wrap').style.display = 'block';
           });
