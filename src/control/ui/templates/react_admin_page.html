@@ -47,14 +47,14 @@
     .ra-secret-chip.unset { border-color: #cbd5e1; background: #f8fafc; }
     .ra-secret-chip-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .ra-secret-chip-title { font-weight: 700; font-size: 13px; }
-    .ra-secret-chip-status { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid transparent; }
-    .ra-secret-chip-status.set { color: #166534; background: #dcfce7; border-color: #86efac; }
-    .ra-secret-chip-status.unset { color: #475569; background: #e2e8f0; border-color: #cbd5e1; }
+    .ra-secret-chip-status { font-size: 12px; padding: 0; border: none; background: transparent; }
+    .ra-secret-chip-status.set { color: #166534; }
+    .ra-secret-chip-status.unset { color: #64748b; }
     .ra-secret-chip-note { font-size: 11px; color: #64748b; margin-top: 6px; }
     .ra-link-btn { border: none; background: transparent; color: #1d4ed8; text-decoration: underline; cursor: pointer; font-size: 12px; padding: 0; }
+    .ra-link-btn.danger { color: #b91c1c; }
     .ra-secret-drawer { margin-top: 10px; border-top: 1px solid #dbe5f3; padding-top: 10px; }
     .ra-secret-actions { margin-top: 10px; display: flex; gap: 8px; align-items: center; }
-    .ra-btn.danger { border-color: #ef4444; color: #b91c1c; background: #fff; }
   `;
 
   const style = document.createElement('style');
@@ -362,6 +362,12 @@
       } finally {
         setSecretBusy(false);
       }
+    }
+
+    async function confirmAndRemoveSecretSlot(slot) {
+      const proceed = window.confirm('Are you sure you want to remove this secret?');
+      if (!proceed) return;
+      await removeSecretSlot(slot);
     }
 
     function renderOverviewStatus() {

@@ -27,13 +27,19 @@ const generalView = e('div', {},
           },
           e('div', { className: 'ra-secret-chip-head' },
             e('div', { className: 'ra-secret-chip-title' }, slotLabel(slot, secretNames[slot])),
-            e('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
-              e('span', { className: 'ra-secret-chip-status ' + (isSet ? 'set' : 'unset') }, isSet ? 'Set' : 'Empty'),
+            e('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' } },
+              e('span', { className: 'ra-secret-chip-status ' + (isSet ? 'set' : 'unset') }, isSet ? 'Set' : 'Not set'),
               e('button', {
                 type: 'button',
                 className: 'ra-link-btn',
                 onClick: () => isOpen ? closeSecretEditor() : openSecretEditor(slot),
-              }, isOpen ? 'Close' : (isSet ? 'Update' : 'Add'))
+              }, isOpen ? 'Close' : (isSet ? 'Update' : 'Add')),
+              isSet ? e('button', {
+                type: 'button',
+                className: 'ra-link-btn danger',
+                onClick: () => confirmAndRemoveSecretSlot(slot),
+                disabled: secretBusy,
+              }, 'Remove') : null
             )
           ),
           e('div', { className: 'ra-secret-chip-note' }, 'Access this secret in configuration using ${' + slot + '}'),
@@ -70,12 +76,6 @@ const generalView = e('div', {},
                 onClick: () => saveSecretSlot(slot),
                 disabled: secretBusy,
               }, secretBusy ? 'Saving...' : 'Save Secret'),
-              isSet ? e('button', {
-                type: 'button',
-                className: 'ra-btn danger',
-                onClick: () => removeSecretSlot(slot),
-                disabled: secretBusy,
-              }, 'Remove') : null,
               e('button', {
                 type: 'button',
                 className: 'ra-link-btn',
