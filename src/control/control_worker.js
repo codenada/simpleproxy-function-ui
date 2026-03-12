@@ -133,6 +133,7 @@ function createWorker() {
       || pathname === RESERVED_ROOT
       || pathname === REACT_LOGIN_ROOT
       || pathname === REACT_ADMIN_ROOT
+      || pathname.startsWith(`${REACT_ADMIN_ROOT}/`)
       || pathname.startsWith(`${ADMIN_ROOT}`);
   }
 

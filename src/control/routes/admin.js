@@ -4,6 +4,12 @@ async function dispatchAdminRoute({ normalizedPath, request, env, adminRoot, han
   if (normalizedPath === CONTROL_REACT_LOGIN_ROOT && request.method === "GET") {
     return handlers.handleReactLoginPage(env, request);
   }
+  if (normalizedPath === `${CONTROL_REACT_ADMIN_ROOT}/assets/react.js` && request.method === "GET") {
+    return handlers.handleReactRuntimeAsset();
+  }
+  if (normalizedPath === `${CONTROL_REACT_ADMIN_ROOT}/assets/react-dom.js` && request.method === "GET") {
+    return handlers.handleReactDomRuntimeAsset();
+  }
   if (normalizedPath === CONTROL_REACT_ADMIN_ROOT && request.method === "GET") {
     return handlers.handleReactAdminPage();
   }

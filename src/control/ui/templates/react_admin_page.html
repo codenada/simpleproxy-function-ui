@@ -1,6 +1,6 @@
 <div id="react-admin-root"></div>
-<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="/_admin/assets/react.js"></script>
+<script src="/_admin/assets/react-dom.js"></script>
 <script>
 (function () {
   const API_ROOT = '{{admin_api_root}}';
@@ -19,9 +19,10 @@
       --ra-primary-2: #e8f0ff;
     }
     body { margin: 0; background: var(--ra-bg); color: var(--ra-text); font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif; }
-    .ra-shell { min-height: 100vh; display: grid; grid-template-columns: 240px 1fr; }
+    .ra-shell { min-height: 100vh; display: grid; grid-template-columns: 260px 1fr; }
     .ra-side { background: linear-gradient(180deg, #0f172a 0%, #111827 100%); color: #e2e8f0; padding: 24px 18px; }
     .ra-brand { font-size: 20px; font-weight: 700; line-height: 1.2; margin-bottom: 18px; }
+    .ra-note { margin: 4px 0 16px; font-size: 12px; color: #94a3b8; }
     .ra-nav button { width: 100%; text-align: left; background: transparent; border: 1px solid transparent; color: #cbd5e1; border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; cursor: pointer; }
     .ra-nav button.active { background: rgba(148, 163, 184, 0.16); border-color: rgba(148, 163, 184, 0.25); color: #fff; }
     .ra-main { padding: 24px; }
@@ -34,6 +35,10 @@
     .ra-btn.primary { background: var(--ra-primary); color: #fff; border-color: var(--ra-primary); }
     .ra-err { color: #b91c1c; font-size: 13px; margin-top: 8px; }
     textarea.ra-textarea { width: 100%; min-height: 320px; border: 1px solid var(--ra-border); border-radius: 10px; padding: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+    .ra-topbar { display:flex; justify-content:space-between; gap:8px; margin-bottom: 12px; align-items:center; }
+    .ra-iframe-wrap { height: calc(100vh - 170px); min-height: 620px; border: 1px solid var(--ra-border); border-radius: 12px; overflow: hidden; background:#fff; }
+    .ra-iframe { width: 100%; height: 100%; border: 0; }
+    .ra-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
   `;
 
   const style = document.createElement('style');
@@ -76,18 +81,21 @@
   }
 
   function App() {
-    const [view, setView] = React.useState('general');
+    const [view, setView] = React.useState('console');
     const [status, setStatus] = React.useState(null);
     const [keys, setKeys] = React.useState(null);
     const [yaml, setYaml] = React.useState('');
     const [saving, setSaving] = React.useState(false);
     const [error, setError] = React.useState('');
+    const [legacyUrl, setLegacyUrl] = React.useState('');
 
     React.useEffect(() => {
-      if (!getToken()) {
+      const token = getToken();
+      if (!token) {
         clearTokenAndExit();
         return;
       }
+      setLegacyUrl('/admin?admin_access_token=' + encodeURIComponent(token));
       (async () => {
         try {
           const [ver, keyState, cfg] = await Promise.all([
@@ -136,15 +144,33 @@
     }
 
     const nav = e('div', { className: 'ra-nav' },
+      e('button', { className: view === 'console' ? 'active' : '', onClick: () => setView('console') }, 'Legacy Console'),
       e('button', { className: view === 'general' ? 'active' : '', onClick: () => setView('general') }, 'General'),
       e('button', { className: view === 'config' ? 'active' : '', onClick: () => setView('config') }, 'YAML Configuration'),
       e('button', { className: view === 'keys' ? 'active' : '', onClick: () => setView('keys') }, 'API Keys'),
       e('button', { onClick: clearTokenAndExit }, 'Logout')
     );
 
+    const consoleView = e('div', {},
+      e('div', { className: 'ra-topbar' },
+        e('div', {},
+          e('h1', { className: 'ra-title' }, 'Admin Console'),
+          e('p', { className: 'ra-sub' }, 'Full existing admin UI embedded for feature parity during migration.')
+        ),
+        e('div', {},
+          e('button', { className: 'ra-btn', onClick: () => window.open(legacyUrl || '/admin', '_blank', 'noopener,noreferrer') }, 'Open in new tab')
+        )
+      ),
+      e('div', { className: 'ra-iframe-wrap' },
+        legacyUrl
+          ? e('iframe', { className: 'ra-iframe', src: legacyUrl, title: 'SimpleProxy Legacy Admin' })
+          : e('div', { className: 'ra-card' }, 'Preparing admin session...')
+      )
+    );
+
     const generalView = e('div', {},
       e('h1', { className: 'ra-title' }, 'SimpleProxy Admin'),
-      e('p', { className: 'ra-sub' }, 'React preview UI at /_admin. Existing /admin remains unchanged.'),
+      e('p', { className: 'ra-sub' }, 'React shell and migration workspace.'),
       e('div', { className: 'ra-grid' },
         e('div', { className: 'ra-card' },
           e('div', { className: 'ra-pill' }, 'Version'),
@@ -153,6 +179,11 @@
         e('div', { className: 'ra-card' },
           e('div', { className: 'ra-pill' }, 'Build Timestamp'),
           e('p', null, status && status.build_timestamp ? status.build_timestamp : 'n/a')
+        ),
+        e('div', { className: 'ra-card' },
+          e('div', { className: 'ra-pill' }, 'Current Route'),
+          e('p', null, '/_admin'),
+          e('p', { className: 'ra-sub ra-mono' }, 'Auth token remains in sessionStorage and is never appended to browser URL for /_admin.')
         )
       )
     );
@@ -183,10 +214,12 @@
     return e('div', { className: 'ra-shell' },
       e('aside', { className: 'ra-side' },
         e('div', { className: 'ra-brand' }, 'SimpleProxy', e('br'), 'Admin React'),
+        e('div', { className: 'ra-note' }, 'Control worker scoped'),
         nav
       ),
       e('main', { className: 'ra-main' },
         error ? e('div', { className: 'ra-card' }, e('div', { className: 'ra-err' }, error)) : null,
+        view === 'console' ? consoleView : null,
         view === 'general' ? generalView : null,
         view === 'config' ? configView : null,
         view === 'keys' ? keysView : null

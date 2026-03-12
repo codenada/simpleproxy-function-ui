@@ -14,6 +14,8 @@ function applyAdminShellHandlers(handlers, deps) {
   handlers.handleAdminPage = () => deps.adminUiApi.handleAdminPage();
   handlers.handleLiveLogPage = () => deps.adminUiApi.handleLiveLogPage();
   handlers.handleReactAdminPage = () => deps.adminUiApi.handleReactAdminPage("/_login");
+  handlers.handleReactRuntimeAsset = () => deps.adminUiApi.handleReactRuntimeAsset();
+  handlers.handleReactDomRuntimeAsset = () => deps.adminUiApi.handleReactDomRuntimeAsset();
   handlers.handleAdminSwaggerPage = (request) => deps.swaggerApi.handleAdminSwaggerPage(request);
   handlers.handleAdminSwaggerSpec = (request) => deps.swaggerApi.handleAdminSwaggerSpec(request);
   handlers.handleAdminAccessTokenPost = deps.handleAdminAccessTokenPost;

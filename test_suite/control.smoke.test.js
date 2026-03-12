@@ -294,6 +294,32 @@ test("React admin shell is available at /_admin", SERIAL, async () => {
   assert.match(html, /SimpleProxy Admin/i);
   assert.match(html, /react-admin-root/i);
   assert.match(html, /ReactDOM\.createRoot/i);
+  assert.match(html, /\/_admin\/assets\/react\.js/i);
+  assert.match(html, /\/_admin\/assets\/react-dom\.js/i);
+});
+
+test("React admin local assets are served from control worker", SERIAL, async () => {
+  const env = createEnv({}, {
+    config_json_v1: JSON.stringify(minimalValidConfigPatch()),
+  });
+
+  const reactAsset = await callSpecificWorker(controlWorker, env, {
+    method: "GET",
+    path: "/_admin/assets/react.js",
+  });
+  assert.equal(reactAsset.status, 200);
+  assert.match(reactAsset.headers.get("content-type") || "", /application\/javascript/i);
+  const reactText = await reactAsset.text();
+  assert.match(reactText, /react\.production\.min\.js/i);
+
+  const reactDomAsset = await callSpecificWorker(controlWorker, env, {
+    method: "GET",
+    path: "/_admin/assets/react-dom.js",
+  });
+  assert.equal(reactDomAsset.status, 200);
+  assert.match(reactDomAsset.headers.get("content-type") || "", /application\/javascript/i);
+  const reactDomText = await reactDomAsset.text();
+  assert.match(reactDomText, /react-dom\.production\.min\.js/i);
 });
 
 test("Control worker keeps /_apiproxy bootstrap endpoints disabled", SERIAL, async () => {

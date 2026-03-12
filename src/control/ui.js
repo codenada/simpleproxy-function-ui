@@ -4,6 +4,8 @@ import adminLoginOptionsTemplate from "./ui/templates/admin_login_options.html";
 import adminPageTemplate from "./ui/templates/admin_page.html";
 import liveLogPageTemplate from "./ui/templates/live_log_page.html";
 import reactAdminPageTemplate from "./ui/templates/react_admin_page.html";
+import reactRuntimeTemplate from "./ui/templates/react_runtime.html";
+import reactDomRuntimeTemplate from "./ui/templates/react_dom_runtime.html";
 import secretFieldTemplate from "./ui/templates/secret_field.html";
 import initAdminLoginScriptTemplate from "./ui/templates/init_admin_login_script.html";
 import secretFieldScriptTemplate from "./ui/templates/secret_field_script.html";
@@ -19,6 +21,8 @@ const templates = {
   admin_page: adminPageTemplate,
   live_log_page: liveLogPageTemplate,
   react_admin_page: reactAdminPageTemplate,
+  react_runtime: reactRuntimeTemplate,
+  react_dom_runtime: reactDomRuntimeTemplate,
   init_admin_login_script: initAdminLoginScriptTemplate,
   secret_field: secretFieldTemplate,
   secret_field_script: secretFieldScriptTemplate,
@@ -131,4 +135,22 @@ export function renderReactAdminPage({ adminApiRoot = "/admin", loginRoot = "/_l
     htmlPage("", bodyHtml),
     { headers: { "content-type": "text/html; charset=utf-8" } }
   );
+}
+
+export function renderReactRuntimeAsset() {
+  return new Response(templates.react_runtime || "", {
+    headers: {
+      "content-type": "application/javascript; charset=utf-8",
+      "cache-control": "public, max-age=3600",
+    },
+  });
+}
+
+export function renderReactDomRuntimeAsset() {
+  return new Response(templates.react_dom_runtime || "", {
+    headers: {
+      "content-type": "application/javascript; charset=utf-8",
+      "cache-control": "public, max-age=3600",
+    },
+  });
 }
