@@ -24,6 +24,7 @@ const CONTROL_ADMIN_PATHS = {
   CONFIG_TEST_RULE: "/config/test-rule",
   KEY_ROTATION_CONFIG: "/key-rotation-config",
   TRANSFORM_CONFIG: "/transform-config",
+  NETWORK_CONTROLS: "/network-controls",
   DEBUG: "/debug",
   DEBUG_LAST: "/debug/last",
   DEBUG_LOGGING_SECRET: "/debug/loggingSecret",

@@ -93,6 +93,14 @@ async function dispatchAdminRoute({ normalizedPath, request, env, adminRoot, han
     await auth.requireAdminAuth(request, env);
     return handlers.handleTransformConfigPut(request, env);
   }
+  if (normalizedPath === `${adminRoot}${CONTROL_ADMIN_PATHS.NETWORK_CONTROLS}` && request.method === "GET") {
+    await auth.requireAdminAuth(request, env);
+    return handlers.handleNetworkControlsGet(env);
+  }
+  if (normalizedPath === `${adminRoot}${CONTROL_ADMIN_PATHS.NETWORK_CONTROLS}` && request.method === "PUT") {
+    await auth.requireAdminAuth(request, env);
+    return handlers.handleNetworkControlsPut(request, env);
+  }
 
   if (normalizedPath === `${adminRoot}${CONTROL_ADMIN_PATHS.DEBUG}` && request.method === "GET") {
     await auth.requireAdminAuth(request, env);

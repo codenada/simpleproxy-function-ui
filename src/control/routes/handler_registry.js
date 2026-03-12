@@ -31,6 +31,8 @@ function applyConfigHandlers(handlers, deps) {
   handlers.handleKeyRotationConfigPut = deps.handleKeyRotationConfigPut;
   handlers.handleTransformConfigGet = deps.handleTransformConfigGet;
   handlers.handleTransformConfigPut = deps.handleTransformConfigPut;
+  handlers.handleNetworkControlsGet = deps.handleNetworkControlsGet;
+  handlers.handleNetworkControlsPut = deps.handleNetworkControlsPut;
 }
 
 function applyDebugHandlers(handlers, deps) {

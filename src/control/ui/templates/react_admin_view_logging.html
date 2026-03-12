@@ -1,0 +1,80 @@
+const loggingView = e('div', {},
+  e('h1', { className: 'ra-title' }, 'Logging'),
+  e('p', { className: 'ra-sub' }, 'Control debug sessions, inspect latest log payload, and launch live log streaming.'),
+  e('div', { className: 'ra-card' },
+    e('div', { className: 'ra-grid' },
+      e('div', {},
+        e('div', { className: 'ra-pill' }, 'Debug Session'),
+        e('div', null, e('b', null, 'Enabled:'), ' ', loggingEnabled ? 'yes' : 'no'),
+        e('div', null, e('b', null, 'Expires:'), ' ', loggingExpiresAt),
+        e('div', null, e('b', null, 'Remaining:'), ' ', loggingRemainingHours)
+      ),
+      e('div', {},
+        e('label', { className: 'ra-field', htmlFor: 'ra-logging-ttl-preset' }, 'Logging TTL'),
+        e('select', {
+          id: 'ra-logging-ttl-preset',
+          className: 'ra-select',
+          value: loggingTtlPreset,
+          onChange: (ev) => setLoggingTtlPreset(ev.target.value),
+        },
+          e('option', { value: '1h' }, '1 hour'),
+          e('option', { value: '6h' }, '6 hours'),
+          e('option', { value: '24h' }, '24 hours'),
+          e('option', { value: '7d' }, '7 days'),
+          e('option', { value: 'custom' }, 'custom')
+        ),
+        loggingTtlPreset === 'custom'
+          ? e('div', {},
+            e('label', { className: 'ra-field', htmlFor: 'ra-logging-ttl-custom' }, 'Custom TTL (hours)'),
+            e('input', {
+              id: 'ra-logging-ttl-custom',
+              className: 'ra-input',
+              type: 'number',
+              min: '1',
+              step: '1',
+              value: loggingTtlCustomHours,
+              onChange: (ev) => setLoggingTtlCustomHours(ev.target.value),
+            })
+          )
+          : null
+      )
+    ),
+    e('div', { className: 'ra-secret-actions', style: { marginTop: '12px' } },
+      e('button', {
+        type: 'button',
+        className: 'ra-btn primary',
+        onClick: enableLogging,
+        disabled: loggingBusy,
+      }, loggingBusy ? 'Saving...' : 'Enable Logging'),
+      e('button', {
+        type: 'button',
+        className: 'ra-btn',
+        onClick: disableLogging,
+        disabled: loggingBusy,
+      }, loggingBusy ? 'Saving...' : 'Disable Logging'),
+      e('button', {
+        type: 'button',
+        className: 'ra-btn',
+        onClick: refreshLoggingView,
+        disabled: loggingBusy,
+      }, 'Refresh'),
+      e('button', {
+        type: 'button',
+        className: 'ra-btn',
+        onClick: openLiveLogPage,
+      }, 'Open Live Log')
+    ),
+    loggingMessage ? e('div', { className: 'ra-ok', style: { marginTop: '8px' } }, loggingMessage) : null
+  ),
+  e('div', { className: 'ra-card' },
+    e('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' } },
+      e('p', { style: { margin: 0, fontWeight: 700 } }, 'Last Log'),
+      e('button', {
+        type: 'button',
+        className: 'ra-link-btn',
+        onClick: refreshLastLog,
+      }, 'Refresh')
+    ),
+    e('pre', { className: 'ra-pre', style: { marginTop: '10px' } }, loggingLastOutput || 'Debug output appears here.')
+  )
+);

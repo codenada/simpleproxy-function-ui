@@ -1,0 +1,17 @@
+const responseTransformView = e('div', {},
+  e('h1', { className: 'ra-title' }, 'Response Transformations'),
+  e('p', { className: 'ra-sub' }, 'Legacy-identical tab embedded from /admin.'),
+  e('div', { className: 'ra-card', style: { padding: 0, overflow: 'hidden' } },
+    e('iframe', {
+      title: 'Legacy Response Transformations',
+      src: '/admin?embed=1&embed_tab=outbound-transform',
+      style: {
+        width: '100%',
+        minHeight: '900px',
+        height: String(legacyEmbedHeights['outbound-transform'] || 1200) + 'px',
+        border: '0',
+        background: '#fff',
+      },
+    })
+  )
+);

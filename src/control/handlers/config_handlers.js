@@ -385,6 +385,82 @@ function createControlConfigHandlers(deps) {
     });
   }
 
+  async function handleNetworkControlsGet(env) {
+    const config = await loadConfigV1(env);
+    const trafficControls = config?.traffic_controls || DEFAULT_CONFIG_V1.traffic_controls;
+    return jsonResponse(200, {
+      ok: true,
+      data: {
+        traffic_controls: trafficControls,
+      },
+      meta: {},
+    });
+  }
+
+  async function handleNetworkControlsPut(request, env) {
+    enforceInvokeContentType(request);
+    const body = await readJsonWithLimit(request, getEnvInt(env, "MAX_REQ_BYTES", defaults.MAX_REQ_BYTES));
+    if (!isNonArrayObject(body)) {
+      throw new HttpError(400, "INVALID_REQUEST", "Body must be an object");
+    }
+
+    const existing = await loadConfigV1(env);
+    const currentTrafficControls = existing?.traffic_controls || DEFAULT_CONFIG_V1.traffic_controls;
+    const ipFilterIn = isNonArrayObject(body?.ip_filter) ? body.ip_filter : currentTrafficControls.ip_filter;
+    const requestRateLimitIn = isNonArrayObject(body?.request_rate_limit)
+      ? body.request_rate_limit
+      : currentTrafficControls.request_rate_limit;
+
+    let allowedCidrs = currentTrafficControls.ip_filter.allowed_cidrs;
+    if (body.ip_filter && !isNonArrayObject(body.ip_filter)) {
+      throw new HttpError(400, "INVALID_REQUEST", "ip_filter must be an object");
+    }
+    if (isNonArrayObject(body.ip_filter) && body.ip_filter.allowed_cidrs !== undefined) {
+      if (!Array.isArray(body.ip_filter.allowed_cidrs)) {
+        throw new HttpError(400, "INVALID_REQUEST", "ip_filter.allowed_cidrs must be an array");
+      }
+      const normalizedCidrs = body.ip_filter.allowed_cidrs
+        .map((value) => String(value || "").trim())
+        .filter(Boolean);
+      allowedCidrs = normalizedCidrs.length ? normalizedCidrs : ["0.0.0.0/0", "::/0"];
+    }
+
+    let rpmRateLimit = currentTrafficControls.request_rate_limit.rpm_rate_limit;
+    if (body.request_rate_limit && !isNonArrayObject(body.request_rate_limit)) {
+      throw new HttpError(400, "INVALID_REQUEST", "request_rate_limit must be an object");
+    }
+    if (isNonArrayObject(body.request_rate_limit) && body.request_rate_limit.rpm_rate_limit !== undefined) {
+      const candidate = Number(body.request_rate_limit.rpm_rate_limit);
+      if (!Number.isInteger(candidate) || candidate < 1) {
+        throw new HttpError(400, "INVALID_REQUEST", "request_rate_limit.rpm_rate_limit must be an integer >= 1");
+      }
+      rpmRateLimit = candidate;
+    }
+
+    const next = {
+      ...existing,
+      traffic_controls: {
+        ip_filter: {
+          enabled: !!ipFilterIn?.enabled,
+          allowed_cidrs: allowedCidrs,
+        },
+        request_rate_limit: {
+          enabled: !!requestRateLimitIn?.enabled,
+          rpm_rate_limit: rpmRateLimit,
+        },
+      },
+    };
+    const normalized = await saveConfigObjectV1(next, env);
+    return jsonResponse(200, {
+      ok: true,
+      data: {
+        message: "Network controls updated",
+        traffic_controls: normalized.traffic_controls,
+      },
+      meta: {},
+    });
+  }
+
   return {
     handleConfigGet,
     handleConfigPut,
@@ -393,6 +469,8 @@ function createControlConfigHandlers(deps) {
     handleKeyRotationConfigPut,
     handleTransformConfigGet,
     handleTransformConfigPut,
+    handleNetworkControlsGet,
+    handleNetworkControlsPut,
   };
 }
 

@@ -1,0 +1,96 @@
+const sandboxView = e('div', {},
+  e('h1', { className: 'ra-title' }, 'API Sandbox'),
+  e('p', { className: 'ra-sub' }, 'Build and send ad hoc API requests with auth presets and a live curl preview.'),
+  e('div', { className: 'ra-card' },
+    e('label', { className: 'ra-field', htmlFor: 'ra-sandbox-auth-mode' }, 'Auth mode'),
+    e('select', {
+      id: 'ra-sandbox-auth-mode',
+      className: 'ra-select',
+      value: sandboxAuthMode,
+      onChange: (ev) => setSandboxAuthMode(ev.target.value),
+    },
+      e('option', { value: 'none' }, 'none'),
+      e('option', { value: 'admin_token' }, 'admin_token (session)'),
+      e('option', { value: 'admin_key' }, 'admin_key'),
+      e('option', { value: 'proxy_key' }, 'proxy_key'),
+      e('option', { value: 'issuer_key' }, 'issuer_key')
+    ),
+    sandboxAuthMode !== 'none' && sandboxAuthMode !== 'admin_token'
+      ? e('div', {},
+        e('label', { className: 'ra-field', htmlFor: 'ra-sandbox-auth-value' }, 'Auth header value'),
+        e('input', {
+          id: 'ra-sandbox-auth-value',
+          className: 'ra-input',
+          type: 'password',
+          value: sandboxAuthValue,
+          onChange: (ev) => setSandboxAuthValue(ev.target.value),
+          placeholder: 'header value',
+        })
+      )
+      : null,
+    e('label', { className: 'ra-field', htmlFor: 'ra-sandbox-template' }, 'Template'),
+    e('select', {
+      id: 'ra-sandbox-template',
+      className: 'ra-select',
+      value: sandboxTemplateKey,
+      onChange: (ev) => applySandboxTemplate(ev.target.value),
+    },
+      sandboxTemplateOptions.map((entry) => e('option', { key: entry.key, value: entry.key }, entry.label))
+    ),
+    e('div', { className: 'ra-row', style: { marginTop: '12px' } },
+      e('label', { className: 'ra-field', htmlFor: 'ra-sandbox-method' }, 'Method'),
+      e('select', {
+        id: 'ra-sandbox-method',
+        className: 'ra-select',
+        value: sandboxMethod,
+        onChange: (ev) => setSandboxMethod(ev.target.value),
+      },
+        e('option', { value: 'GET' }, 'GET'),
+        e('option', { value: 'POST' }, 'POST'),
+        e('option', { value: 'PUT' }, 'PUT'),
+        e('option', { value: 'PATCH' }, 'PATCH'),
+        e('option', { value: 'DELETE' }, 'DELETE')
+      )
+    ),
+    e('label', { className: 'ra-field', htmlFor: 'ra-sandbox-url' }, 'URL'),
+    e('input', {
+      id: 'ra-sandbox-url',
+      className: 'ra-input',
+      value: sandboxUrl,
+      onChange: (ev) => setSandboxUrl(ev.target.value),
+      placeholder: 'https://...',
+    }),
+    e('label', { className: 'ra-field', htmlFor: 'ra-sandbox-headers' }, 'Headers'),
+    e('textarea', {
+      id: 'ra-sandbox-headers',
+      className: 'ra-textarea',
+      value: sandboxHeaders,
+      onChange: (ev) => setSandboxHeaders(ev.target.value),
+      placeholder: 'Header-Name: value',
+    }),
+    e('label', { className: 'ra-field', htmlFor: 'ra-sandbox-body' }, 'Body'),
+    e('textarea', {
+      id: 'ra-sandbox-body',
+      className: 'ra-textarea',
+      value: sandboxBody,
+      onChange: (ev) => setSandboxBody(ev.target.value),
+      placeholder: 'JSON or raw body text',
+    }),
+    e('div', { className: 'ra-secret-actions', style: { marginTop: '12px' } },
+      e('button', {
+        type: 'button',
+        className: 'ra-btn primary',
+        onClick: sendSandboxRequest,
+        disabled: sandboxBusy,
+      }, sandboxBusy ? 'Sending...' : 'Make HTTP Request')
+    )
+  ),
+  e('div', { className: 'ra-card' },
+    e('p', { style: { margin: 0, fontWeight: 700 } }, 'Curl Preview'),
+    e('pre', { className: 'ra-pre', style: { marginTop: '8px' } }, sandboxCurlPreview || 'curl preview appears here.')
+  ),
+  e('div', { className: 'ra-card' },
+    e('p', { style: { margin: 0, fontWeight: 700 } }, 'Response'),
+    e('pre', { className: 'ra-pre', style: { marginTop: '8px' } }, sandboxResponse || 'Response appears here.')
+  )
+);

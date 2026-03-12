@@ -35,6 +35,24 @@
           "logging-req": "logging",
         });
         const HTTP_SECRET_REF_OPTIONS = Object.freeze(["secret1", "secret2"]);
+        const EMBED_ALLOWED_TABS = new Set(["inbound-transform", "outbound-transform", "inbound-traffic-controls"]);
+        const EMBED_MODE = (() => {
+          try {
+            const params = new URLSearchParams(window.location.search || "");
+            return params.get("embed") === "1" || !!params.get("embed_tab");
+          } catch {
+            return false;
+          }
+        })();
+        const EMBED_TAB = (() => {
+          try {
+            const params = new URLSearchParams(window.location.search || "");
+            const raw = String(params.get("embed_tab") || "").trim();
+            return EMBED_ALLOWED_TABS.has(raw) ? raw : "";
+          } catch {
+            return "";
+          }
+        })();
 {{sandbox_templates_js}}
         const SANDBOX_REDACT_HEADERS = new Set([
           'authorization',
@@ -45,14 +63,25 @@
           'x-admin-key',
           'x-issuer-key',
         ]);
+        const UI_DEBUG_STORAGE_KEY = 'apiproxy_ui_debug_mode_v1';
         const UI_DEBUG = (() => {
           try {
             const params = new URLSearchParams(window.location.search || '');
-            return params.get('debug') === 'true';
+            const debugParam = String(params.get('debug') || '').trim().toLowerCase();
+            if (debugParam === 'true') {
+              try { sessionStorage.setItem(UI_DEBUG_STORAGE_KEY, '1'); } catch {}
+              return true;
+            }
+            if (debugParam === 'false') {
+              try { sessionStorage.removeItem(UI_DEBUG_STORAGE_KEY); } catch {}
+              return false;
+            }
+            return sessionStorage.getItem(UI_DEBUG_STORAGE_KEY) === '1';
           } catch {
             return false;
           }
         })();
+        let CONFIG_DEBUG_MODE = false;
         const requestSecretSlotState = {
           secret1: { exists: false },
           secret2: { exists: false },
@@ -72,6 +101,42 @@
            if (!node) return;
            node.textContent = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
          }
+        function postEmbedHeight(tabName) {
+          if (!EMBED_MODE) return;
+          try {
+            const height = Math.max(
+              document.documentElement?.scrollHeight || 0,
+              document.body?.scrollHeight || 0,
+              400
+            );
+            window.parent?.postMessage({
+              type: 'legacy-admin-embed-height',
+              tab: String(tabName || EMBED_TAB || currentTabName || ''),
+              height,
+            }, window.location.origin);
+          } catch {}
+        }
+        function applyEmbedLayout(activeTab) {
+          if (!EMBED_MODE) return;
+          const nav = el('admin-nav');
+          if (nav) nav.style.display = 'none';
+          const loginHeading = el('login-fqdn');
+          if (loginHeading) loginHeading.style.display = 'none';
+          const sharedFooter = el('shared-tab-footer');
+          if (sharedFooter) sharedFooter.style.display = 'none';
+          const shell = el('admin-shell');
+          if (shell) {
+            shell.style.padding = '0';
+            shell.style.margin = '0';
+          }
+          document.body.style.margin = '0';
+          document.body.style.padding = '12px';
+          document.body.style.background = '#fff';
+          if (activeTab && switchTab) {
+            void switchTab(activeTab);
+          }
+          setTimeout(() => postEmbedHeight(activeTab), 0);
+        }
         function htmlEscape(value) {
           return String(value ?? '')
             .replace(/&/g, '&amp;')
@@ -79,12 +144,18 @@
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;');
         }
+        function updateDebugModeBanner() {
+          const node = el('debug-mode-banner');
+          if (!node) return;
+          const enabled = !!UI_DEBUG || !!CONFIG_DEBUG_MODE;
+          node.style.display = enabled ? 'block' : 'none';
+        }
         function fixedKeyRotationProfileFor(prefix) {
           return KEY_ROTATION_PROFILE_BY_FORM_PREFIX[String(prefix || "")] || "";
         }
         function renderHeaderList(prefix, options) {
           const label = options?.label || 'Headers';
-          const helpText = options?.helpText || 'YAML-style: Header-Name: value per line';
+          const helpText = options?.helpText || 'YAML-style: Header-Name: value per line. Accepts secret values ${secret1} and ${secret2}.';
           const disabled = !!options?.disabled;
           const rows = options?.rows || 4;
           const placeholder = options?.placeholder || 'Header-Name: value';
@@ -246,6 +317,7 @@
             + '<label for="' + prefix + '-body">Request Body</label>'
             + '<a href="#" id="' + prefix + '-body-toggle" style="font-size:12px;text-decoration:underline;">hide</a>'
             + '</div>'
+            + '<div style="font-size:12px;color:#64748b;margin-top:-2px;margin-bottom:4px;">Accepts secret values ${secret1} and ${secret2}.</div>'
             + '<div id="' + prefix + '-body-wrap">'
             + '<textarea id="' + prefix + '-body" rows="8" placeholder="JSON or raw text" ' + (disableBody ? 'disabled ' : '')
             + 'style="width:100%;max-width:740px;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;' + (disableBody ? 'background:#f8fafc;' : '') + '"></textarea>'
@@ -1349,8 +1421,10 @@
            if (!currentKey) {
              stopLiveLogStream();
              showWarning('');
+             if (EMBED_MODE) setTimeout(() => postEmbedHeight('auth'), 0);
               return;
             }
+           if (EMBED_MODE) applyEmbedLayout(EMBED_TAB || currentTabName || 'overview');
          }
         function handleUnauthorized() {
            stopLiveLogStream();
@@ -1659,6 +1733,7 @@
             if (name === 'sandbox') sandboxInit();
             currentTabName = name;
             updateSharedFooterState();
+            if (EMBED_MODE) postEmbedHeight(name);
           }
           switchTab = setActiveTab;
            btns.forEach((btn) => {
@@ -1676,7 +1751,7 @@
                void setActiveTab(name);
              });
            });
-          void setActiveTab('overview');
+          void setActiveTab(EMBED_TAB || 'overview');
         }
         function formatOverviewStatus(version, debug, headers, targetHost, proxyName) {
           const versionText = version?.data?.version || 'unknown';
@@ -1858,6 +1933,13 @@
             if (UI_DEBUG) {
               console.log('[config yaml]', text);
             }
+            try {
+              const parsedCfg = parseConfigYamlText(text);
+              CONFIG_DEBUG_MODE = parsedCfg?.debug_mode === true;
+            } catch {
+              CONFIG_DEBUG_MODE = false;
+            }
+            updateDebugModeBanner();
             if (el('config-yaml')) el('config-yaml').value = text;
             if (el('proxy-name')) el('proxy-name').value = parseProxyNameFromYaml(text);
             if (el('target-host')) el('target-host').value = parseTargetHostFromYaml(text);
@@ -1924,6 +2006,8 @@
           try {
             const nextParsed = parseConfigYamlText(yaml);
             const debugModeEnabled = nextParsed?.debug_mode === true;
+            CONFIG_DEBUG_MODE = debugModeEnabled;
+            updateDebugModeBanner();
             let previousYaml = null;
             if (UI_DEBUG || debugModeEnabled) {
               previousYaml = await apiCall(ADMIN_ROOT + '/config', 'GET', undefined, true);
@@ -2954,6 +3038,10 @@
         function bind() {
           installFetchErrorModalHook();
           attachTabs();
+          if (EMBED_MODE) {
+            window.addEventListener('resize', () => postEmbedHeight(currentTabName || EMBED_TAB));
+          }
+          updateDebugModeBanner();
           updateProxyHeader('');
           [
             'footer-save-logging',
@@ -3406,7 +3494,7 @@
                } catch {}
              }
              const token = queryToken || sessionStorage.getItem(ADMIN_ACCESS_TOKEN_STORAGE) || '';
-            if (token) {
+           if (token) {
               setCurrentKey(token);
               refreshOverview();
               debugLoadTrace();
@@ -3420,6 +3508,9 @@
               addHeaderInputRow('', '');
             }
            } catch {}
+          if (EMBED_MODE) {
+            setTimeout(() => postEmbedHeight(currentTabName || EMBED_TAB || 'auth'), 0);
+          }
          }
          bind();
 

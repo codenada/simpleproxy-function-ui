@@ -6,6 +6,21 @@
   const API_ROOT = '{{admin_api_root}}';
   const LOGIN_ROOT = '{{login_root}}';
   const TOKEN_STORAGE = 'apiproxy_admin_access_token_v1';
+  const LOGGING_TTL_PRESET_SECONDS = Object.freeze({
+    '1h': 3600,
+    '6h': 21600,
+    '24h': 86400,
+    '7d': 604800,
+  });
+  const SANDBOX_REDACT_HEADERS = new Set([
+    'authorization',
+    'proxy-authorization',
+    'cookie',
+    'set-cookie',
+    'x-proxy-key',
+    'x-admin-key',
+    'x-issuer-key',
+  ]);
   const e = React.createElement;
 
   const styles = `
@@ -49,6 +64,7 @@
     .ra-secret-chip-title { font-weight: 700; font-size: 13px; }
     .ra-secret-chip-note { font-size: 11px; color: #64748b; margin-top: 6px; }
     .ra-link-btn { border: none; background: transparent; color: #1d4ed8; text-decoration: underline; cursor: pointer; font-size: 12px; padding: 0; }
+    .ra-pre { margin: 0; padding: 12px; border: 1px solid #dbe5f3; border-radius: 10px; background: #f8fafc; white-space: pre-wrap; word-break: break-word; max-height: 380px; overflow: auto; }
     .ra-secret-drawer { margin-top: 10px; border-top: 1px solid #dbe5f3; padding-top: 10px; }
     .ra-secret-actions { margin-top: 10px; display: flex; gap: 8px; align-items: center; }
   `;
@@ -155,6 +171,28 @@
     return out;
   }
 
+  function parseJsonArrayText(rawText, label) {
+    const text = String(rawText || '').trim();
+    if (!text) return [];
+    let parsed = null;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      throw new Error(label + ' must be valid JSON.');
+    }
+    if (!Array.isArray(parsed)) {
+      throw new Error(label + ' must be a JSON array.');
+    }
+    return parsed;
+  }
+
+  function textToLines(rawText) {
+    return String(rawText || '')
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+  }
+
   function readBody(type, text) {
     if (type === 'none') return { type: 'none' };
     if (type === 'raw') return { type: 'raw', raw: String(text || '') };
@@ -171,6 +209,53 @@
     const fallback = slot === 'secret2' ? 'Secret2' : 'Secret1';
     const named = String(alias || '').trim();
     return named || fallback;
+  }
+
+  function shellQuote(text) {
+    return "'" + String(text == null ? '' : text).replace(/'/g, "'\"'\"'") + "'";
+  }
+
+  function sandboxTemplateUrl(path) {
+    const raw = String(path || '').trim();
+    if (!raw) return '';
+    if (/^https?:\/\//i.test(raw)) return raw;
+    try {
+      return new URL(raw, window.location.origin).toString();
+    } catch {
+      return raw;
+    }
+  }
+
+  function redactHeaderValue(name, value) {
+    if (!SANDBOX_REDACT_HEADERS.has(String(name || '').toLowerCase())) return value;
+    return '[REDACTED]';
+  }
+
+  function buildSandboxTemplates() {
+    return {
+      status_page: { label: 'GET /_apiproxy', method: 'GET', path: '/_apiproxy', auth_mode: 'none', headers: {}, body: null },
+      request_passthrough: {
+        label: 'POST /_apiproxy/request',
+        method: 'POST',
+        path: '/_apiproxy/request',
+        auth_mode: 'proxy_key',
+        headers: { 'Content-Type': 'application/json' },
+        body: { upstream: { method: 'GET', url: '/json' } },
+      },
+      admin_version: { label: 'GET ' + API_ROOT + '/version', method: 'GET', path: API_ROOT + '/version', auth_mode: 'admin_token', headers: {}, body: null },
+      admin_keys_get: { label: 'GET ' + API_ROOT + '/keys', method: 'GET', path: API_ROOT + '/keys', auth_mode: 'admin_token', headers: {}, body: null },
+      admin_debug_get: { label: 'GET ' + API_ROOT + '/debug', method: 'GET', path: API_ROOT + '/debug', auth_mode: 'admin_token', headers: {}, body: null },
+      admin_debug_enable: {
+        label: 'PUT ' + API_ROOT + '/debug',
+        method: 'PUT',
+        path: API_ROOT + '/debug',
+        auth_mode: 'admin_token',
+        headers: { 'Content-Type': 'application/json' },
+        body: { enabled: true, ttl_seconds: 3600 },
+      },
+      admin_debug_last: { label: 'GET ' + API_ROOT + '/debug/last', method: 'GET', path: API_ROOT + '/debug/last', auth_mode: 'admin_token', headers: {}, body: null },
+      admin_config_get: { label: 'GET ' + API_ROOT + '/config', method: 'GET', path: API_ROOT + '/config', auth_mode: 'admin_token', headers: {}, body: null },
+    };
   }
 
   function App() {
@@ -204,7 +289,175 @@
     const [secretDraftName, setSecretDraftName] = React.useState('');
     const [secretDraftShow, setSecretDraftShow] = React.useState(false);
     const [secretBusy, setSecretBusy] = React.useState(false);
+    const [loggingBusy, setLoggingBusy] = React.useState(false);
+    const [loggingEnabled, setLoggingEnabled] = React.useState(false);
+    const [loggingExpiresAt, setLoggingExpiresAt] = React.useState('n/a');
+    const [loggingRemainingHours, setLoggingRemainingHours] = React.useState('n/a');
+    const [loggingTtlPreset, setLoggingTtlPreset] = React.useState('1h');
+    const [loggingTtlCustomHours, setLoggingTtlCustomHours] = React.useState('12');
+    const [loggingLastOutput, setLoggingLastOutput] = React.useState('');
+    const [loggingMessage, setLoggingMessage] = React.useState('');
+    const [sandboxAuthMode, setSandboxAuthMode] = React.useState('admin_token');
+    const [sandboxAuthValue, setSandboxAuthValue] = React.useState('');
+    const [sandboxTemplateKey, setSandboxTemplateKey] = React.useState('status_page');
+    const [sandboxMethod, setSandboxMethod] = React.useState('GET');
+    const [sandboxUrl, setSandboxUrl] = React.useState('');
+    const [sandboxHeaders, setSandboxHeaders] = React.useState('');
+    const [sandboxBody, setSandboxBody] = React.useState('');
+    const [sandboxCurlPreview, setSandboxCurlPreview] = React.useState('');
+    const [sandboxResponse, setSandboxResponse] = React.useState('');
+    const [sandboxBusy, setSandboxBusy] = React.useState(false);
+    const [legacyEmbedHeights, setLegacyEmbedHeights] = React.useState({});
+    const [transformBusy, setTransformBusy] = React.useState(false);
+    const [transformMessage, setTransformMessage] = React.useState('');
+    const [requestTransformEnabled, setRequestTransformEnabled] = React.useState(false);
+    const [requestTransformPreprocessor, setRequestTransformPreprocessor] = React.useState('');
+    const [requestTransformRulesJson, setRequestTransformRulesJson] = React.useState('[]');
+    const [responseTransformEnabled, setResponseTransformEnabled] = React.useState(true);
+    const [responseTransformPreprocessor, setResponseTransformPreprocessor] = React.useState('');
+    const [responseHeaderMode, setResponseHeaderMode] = React.useState('blacklist');
+    const [responseHeaderNamesText, setResponseHeaderNamesText] = React.useState('');
+    const [responseTransformRulesJson, setResponseTransformRulesJson] = React.useState('[]');
+    const [networkControlsBusy, setNetworkControlsBusy] = React.useState(false);
+    const [networkControlsMessage, setNetworkControlsMessage] = React.useState('');
+    const [networkIpFilterEnabled, setNetworkIpFilterEnabled] = React.useState(false);
+    const [networkAllowedCidrsText, setNetworkAllowedCidrsText] = React.useState('0.0.0.0/0\n::/0');
+    const [networkRpmEnabled, setNetworkRpmEnabled] = React.useState(false);
+    const [networkRpmLimit, setNetworkRpmLimit] = React.useState('120');
+    const sandboxTemplates = React.useMemo(() => buildSandboxTemplates(), []);
+    const sandboxTemplateOptions = React.useMemo(
+      () => Object.entries(sandboxTemplates).map(([key, tpl]) => ({ key, label: String(tpl?.label || key) })),
+      [sandboxTemplates]
+    );
     const availableSecretRefs = ['secret1', 'secret2'].filter((slot) => !!secretStatus[slot]);
+
+    function applyDebugState(payload) {
+      const data = payload?.data || {};
+      const enabled = !!data.enabled;
+      const expiresMs = Number(data.enabled_until_ms || 0);
+      const remainingSeconds = Number(data.ttl_remaining_seconds || 0);
+      setLoggingEnabled(enabled);
+      setLoggingExpiresAt(expiresMs > 0 ? new Date(expiresMs).toISOString() : 'n/a');
+      setLoggingRemainingHours(remainingSeconds > 0 ? (remainingSeconds / 3600).toFixed(2) + ' hours' : 'n/a');
+    }
+
+    function getLoggingTtlSeconds() {
+      const presetSeconds = LOGGING_TTL_PRESET_SECONDS[String(loggingTtlPreset || '')];
+      if (presetSeconds) return presetSeconds;
+      const customHours = Number(loggingTtlCustomHours || 0);
+      if (!Number.isFinite(customHours) || customHours < 1) throw new Error('Custom logging TTL must be at least 1 hour.');
+      return Math.round(customHours * 3600);
+    }
+
+    function sandboxBuildAuthHeader(mode, value) {
+      const m = String(mode || 'admin_token');
+      if (m === 'none') return {};
+      if (m === 'admin_token') {
+        const token = getToken();
+        return token ? { authorization: 'Bearer ' + token } : {};
+      }
+      const v = String(value || '').trim();
+      if (!v) return {};
+      if (m === 'admin_key') return { 'x-admin-key': v };
+      if (m === 'proxy_key') return { 'x-proxy-key': v };
+      if (m === 'issuer_key') return { 'x-issuer-key': v };
+      return {};
+    }
+
+    function buildSandboxCurl(method, url, headers, bodyText) {
+      const lines = ['curl \\', '  -X ' + shellQuote(method)];
+      Object.entries(headers || {}).forEach(([name, value]) => {
+        if (value == null || String(value).trim() === '') return;
+        lines.push('  -H ' + shellQuote(String(name) + ': ' + String(redactHeaderValue(name, value))) + ' \\');
+      });
+      if (String(bodyText || '') !== '') {
+        lines.push('  --data ' + shellQuote(String(bodyText)) + ' \\');
+      }
+      lines.push('  ' + shellQuote(url || ''));
+      return lines.join('\n');
+    }
+
+    function applySandboxTemplate(key) {
+      const nextKey = String(key || '');
+      const tpl = sandboxTemplates[nextKey];
+      if (!tpl) return;
+      setSandboxTemplateKey(nextKey);
+      setSandboxAuthMode(String(tpl.auth_mode || 'admin_token'));
+      setSandboxMethod(String(tpl.method || 'GET').toUpperCase());
+      setSandboxUrl(sandboxTemplateUrl(tpl.path || ''));
+      setSandboxHeaders(headersObjToText(tpl.headers || {}));
+      if (tpl.body == null) setSandboxBody('');
+      else if (typeof tpl.body === 'string') setSandboxBody(String(tpl.body));
+      else setSandboxBody(JSON.stringify(tpl.body, null, 2));
+      setSandboxResponse('');
+    }
+
+    function applyTransformState(payload) {
+      const data = payload?.data || {};
+      const sourceRequest = data?.source_request || {};
+      const targetResponse = data?.target_response || {};
+      const headerFiltering = targetResponse?.header_filtering || {};
+      setRequestTransformEnabled(!!sourceRequest.enabled);
+      setRequestTransformPreprocessor(String(sourceRequest.custom_js_preprocessor || ''));
+      setRequestTransformRulesJson(JSON.stringify(Array.isArray(sourceRequest.rules) ? sourceRequest.rules : [], null, 2));
+      setResponseTransformEnabled(targetResponse.enabled !== false);
+      setResponseTransformPreprocessor(String(targetResponse.custom_js_preprocessor || ''));
+      setResponseHeaderMode(String(headerFiltering.mode || 'blacklist'));
+      setResponseHeaderNamesText(
+        Array.isArray(headerFiltering.names) ? headerFiltering.names.map((name) => String(name || '')).join('\n') : ''
+      );
+      setResponseTransformRulesJson(JSON.stringify(Array.isArray(targetResponse.rules) ? targetResponse.rules : [], null, 2));
+    }
+
+    function applyNetworkControlsState(payload) {
+      const controls = payload?.data?.traffic_controls || {};
+      const ipFilter = controls?.ip_filter || {};
+      const requestRateLimit = controls?.request_rate_limit || {};
+      setNetworkIpFilterEnabled(!!ipFilter.enabled);
+      setNetworkAllowedCidrsText(
+        Array.isArray(ipFilter.allowed_cidrs) && ipFilter.allowed_cidrs.length
+          ? ipFilter.allowed_cidrs.map((cidr) => String(cidr || '')).join('\n')
+          : '0.0.0.0/0\n::/0'
+      );
+      setNetworkRpmEnabled(!!requestRateLimit.enabled);
+      setNetworkRpmLimit(String(Number(requestRateLimit.rpm_rate_limit || 120)));
+    }
+
+    async function refreshTransformViews() {
+      setError('');
+      try {
+        const payload = await apiJson('/transform-config', 'GET');
+        if (!payload) return;
+        applyTransformState(payload);
+      } catch (err) {
+        setError(String(err && err.message || err));
+      }
+    }
+
+    async function refreshNetworkControlsView() {
+      setError('');
+      try {
+        const payload = await apiJson('/network-controls', 'GET');
+        if (!payload) return;
+        applyNetworkControlsState(payload);
+      } catch (err) {
+        setError(String(err && err.message || err));
+      }
+    }
+
+    React.useEffect(() => {
+      function onLegacyEmbedMessage(evt) {
+        const data = evt && evt.data;
+        if (!data || typeof data !== 'object') return;
+        if (data.type !== 'legacy-admin-embed-height') return;
+        const tab = String(data.tab || '').trim();
+        const height = Number(data.height || 0);
+        if (!tab || !Number.isFinite(height) || height < 400) return;
+        setLegacyEmbedHeights((prev) => ({ ...prev, [tab]: Math.ceil(height) }));
+      }
+      window.addEventListener('message', onLegacyEmbedMessage);
+      return () => window.removeEventListener('message', onLegacyEmbedMessage);
+    }, []);
 
     React.useEffect(() => {
       if (strategy !== 'static') return;
@@ -233,14 +486,16 @@
 
       (async () => {
         try {
-          const [versionRes, debugRes, headersRes, cfgYaml, keyRotation] = await Promise.all([
+          const [versionRes, debugRes, headersRes, cfgYaml, keyRotation, transformCfg, networkControlsCfg] = await Promise.all([
             apiJson('/version'),
             apiJson('/debug'),
             apiJson('/headers'),
             apiText('/config'),
             apiJson('/key-rotation-config'),
+            apiJson('/transform-config'),
+            apiJson('/network-controls'),
           ]);
-          if (!versionRes || !keyRotation) return;
+          if (!versionRes || !keyRotation || !transformCfg || !networkControlsCfg) return;
           setYamlText(cfgYaml || '');
           setProxyName(parseTopLevelYamlValue(cfgYaml, 'proxyName'));
           setTargetHost(parseTopLevelYamlValue(cfgYaml, 'targetHost'));
@@ -250,6 +505,7 @@
             debug: !!debugRes?.data?.enabled,
             enrichments: Array.isArray(headersRes?.enriched_headers) ? headersRes.enriched_headers : [],
           });
+          applyDebugState(debugRes);
           const d = keyRotation.data || {};
           const req = d.request || {};
           const enabled = !!d.enabled;
@@ -280,6 +536,17 @@
           setExpiresAtPath(d.expires_at_path == null ? '' : String(d.expires_at_path));
           setRefreshSkew(String(Number(d.refresh_skew_seconds || 0)));
           setRetry401(!!d.retry_once_on_401);
+          applyTransformState(transformCfg);
+          applyNetworkControlsState(networkControlsCfg);
+          applySandboxTemplate(sandboxTemplateOptions?.[0]?.key || 'status_page');
+          await (async () => {
+            try {
+              const last = await apiJson('/debug/last', 'GET');
+              setLoggingLastOutput(JSON.stringify(last, null, 2));
+            } catch {
+              setLoggingLastOutput('Debug output appears here.');
+            }
+          })();
           await loadTargetSecretState();
         } catch (err) {
           setError(String(err && err.message || err));
@@ -360,6 +627,186 @@
       }
     }
 
+    async function refreshLoggingView() {
+      setError('');
+      try {
+        const payload = await apiJson('/debug', 'GET');
+        if (!payload) return;
+        applyDebugState(payload);
+        setStatus((prev) => ({ ...prev, debug: !!payload?.data?.enabled }));
+      } catch (err) {
+        setError(String(err && err.message || err));
+      }
+    }
+
+    async function refreshLastLog() {
+      setError('');
+      try {
+        const payload = await apiJson('/debug/last', 'GET');
+        setLoggingLastOutput(JSON.stringify(payload, null, 2));
+      } catch (err) {
+        setError(String(err && err.message || err));
+      }
+    }
+
+    async function enableLogging() {
+      setLoggingBusy(true);
+      setLoggingMessage('');
+      setError('');
+      try {
+        const ttlSeconds = getLoggingTtlSeconds();
+        await apiJson('/debug', 'PUT', { enabled: true, ttl_seconds: ttlSeconds });
+        await refreshLoggingView();
+        setLoggingMessage('Logging enabled.');
+      } catch (err) {
+        setError(String(err && err.message || err));
+      } finally {
+        setLoggingBusy(false);
+      }
+    }
+
+    async function disableLogging() {
+      setLoggingBusy(true);
+      setLoggingMessage('');
+      setError('');
+      try {
+        await apiJson('/debug', 'DELETE');
+        await refreshLoggingView();
+        setLoggingMessage('Logging disabled.');
+      } catch (err) {
+        setError(String(err && err.message || err));
+      } finally {
+        setLoggingBusy(false);
+      }
+    }
+
+    function openLiveLogPage() {
+      window.open(API_ROOT + '/live-log', '_blank', 'noopener,noreferrer');
+    }
+
+    async function sendSandboxRequest() {
+      setSandboxBusy(true);
+      setError('');
+      setSandboxResponse('');
+      try {
+        const method = String(sandboxMethod || 'GET').toUpperCase();
+        const url = String(sandboxUrl || '').trim();
+        if (!url) throw new Error('Sandbox URL is required.');
+        const bodyText = String(sandboxBody || '');
+        const headers = {
+          ...headersTextToObj(sandboxHeaders),
+          ...sandboxBuildAuthHeader(sandboxAuthMode, sandboxAuthValue),
+        };
+        setSandboxCurlPreview(buildSandboxCurl(method, url, headers, bodyText));
+        const res = await fetch(url, {
+          method,
+          headers,
+          body: bodyText ? bodyText : undefined,
+        });
+        const text = await res.text();
+        let parsed = null;
+        try { parsed = JSON.parse(text); } catch {}
+        setSandboxResponse(JSON.stringify({
+          status: res.status,
+          ok: res.ok,
+          headers: Object.fromEntries(res.headers.entries()),
+          body: parsed == null ? text : parsed,
+        }, null, 2));
+      } catch (err) {
+        setError(String(err && err.message || err));
+        setSandboxResponse(String(err && err.message || err));
+      } finally {
+        setSandboxBusy(false);
+      }
+    }
+
+    async function saveRequestTransformView() {
+      setTransformBusy(true);
+      setTransformMessage('');
+      setError('');
+      try {
+        const rules = parseJsonArrayText(requestTransformRulesJson, 'Request transform rules');
+        await apiJson('/transform-config', 'PUT', {
+          source_request: {
+            enabled: !!requestTransformEnabled,
+            custom_js_preprocessor: String(requestTransformPreprocessor || '').trim() || null,
+            rules,
+          },
+        });
+        await refreshTransformViews();
+        setTransformMessage('Request transformations saved.');
+      } catch (err) {
+        setError(String(err && err.message || err));
+      } finally {
+        setTransformBusy(false);
+      }
+    }
+
+    async function saveResponseTransformView() {
+      setTransformBusy(true);
+      setTransformMessage('');
+      setError('');
+      try {
+        const rules = parseJsonArrayText(responseTransformRulesJson, 'Response transform rules');
+        await apiJson('/transform-config', 'PUT', {
+          target_response: {
+            enabled: !!responseTransformEnabled,
+            custom_js_preprocessor: String(responseTransformPreprocessor || '').trim() || null,
+            header_filtering: {
+              mode: String(responseHeaderMode || 'blacklist'),
+              names: textToLines(responseHeaderNamesText),
+            },
+            rules,
+          },
+        });
+        await refreshTransformViews();
+        setTransformMessage('Response transformations saved.');
+      } catch (err) {
+        setError(String(err && err.message || err));
+      } finally {
+        setTransformBusy(false);
+      }
+    }
+
+    async function saveNetworkControlsView() {
+      setNetworkControlsBusy(true);
+      setNetworkControlsMessage('');
+      setError('');
+      try {
+        const rpm = Number(networkRpmLimit || 0);
+        if (!Number.isInteger(rpm) || rpm < 1) {
+          throw new Error('Rate limit must be an integer >= 1.');
+        }
+        await apiJson('/network-controls', 'PUT', {
+          ip_filter: {
+            enabled: !!networkIpFilterEnabled,
+            allowed_cidrs: textToLines(networkAllowedCidrsText),
+          },
+          request_rate_limit: {
+            enabled: !!networkRpmEnabled,
+            rpm_rate_limit: rpm,
+          },
+        });
+        await refreshNetworkControlsView();
+        setNetworkControlsMessage('Network controls saved.');
+      } catch (err) {
+        setError(String(err && err.message || err));
+      } finally {
+        setNetworkControlsBusy(false);
+      }
+    }
+
+    React.useEffect(() => {
+      const method = String(sandboxMethod || 'GET').toUpperCase();
+      const url = String(sandboxUrl || '').trim();
+      const bodyText = String(sandboxBody || '');
+      const headers = {
+        ...headersTextToObj(sandboxHeaders),
+        ...sandboxBuildAuthHeader(sandboxAuthMode, sandboxAuthValue),
+      };
+      setSandboxCurlPreview(buildSandboxCurl(method, url, headers, bodyText));
+    }, [sandboxMethod, sandboxUrl, sandboxHeaders, sandboxBody, sandboxAuthMode, sandboxAuthValue]);
+
     function renderOverviewStatus() {
       return e('div', { className: 'ra-grid' },
         e('div', { className: 'ra-card' },
@@ -430,12 +877,22 @@
 
     const nav = e('div', { className: 'ra-nav' },
       e('button', { className: view === 'general' ? 'active' : '', onClick: () => setView('general') }, 'General'),
+      e('button', { className: view === 'logging' ? 'active' : '', onClick: () => setView('logging') }, 'Logging'),
+      e('button', { className: view === 'sandbox' ? 'active' : '', onClick: () => setView('sandbox') }, 'API Sandbox'),
+      e('button', { className: view === 'request-transform' ? 'active' : '', onClick: () => setView('request-transform') }, 'Request Transformations'),
+      e('button', { className: view === 'response-transform' ? 'active' : '', onClick: () => setView('response-transform') }, 'Response Transformations'),
+      e('button', { className: view === 'network-controls' ? 'active' : '', onClick: () => setView('network-controls') }, 'Network Controls'),
       e('button', { className: view === 'config' ? 'active' : '', onClick: () => setView('config') }, 'YAML Configuration'),
       e('button', { className: view === 'keys' ? 'active' : '', onClick: () => setView('keys') }, 'API Keys'),
       e('button', { onClick: clearTokenAndExit }, 'Logout')
     );
 
     {{react_admin_view_general_js}}
+    {{react_admin_view_logging_js}}
+    {{react_admin_view_sandbox_js}}
+    {{react_admin_view_request_transform_js}}
+    {{react_admin_view_response_transform_js}}
+    {{react_admin_view_network_controls_js}}
     {{react_admin_view_config_js}}
     {{react_admin_view_keys_js}}
 
@@ -448,6 +905,11 @@
       e('main', { className: 'ra-main' },
         error ? e('div', { className: 'ra-card' }, e('div', { className: 'ra-err' }, error)) : null,
         view === 'general' ? generalView : null,
+        view === 'logging' ? loggingView : null,
+        view === 'sandbox' ? sandboxView : null,
+        view === 'request-transform' ? requestTransformView : null,
+        view === 'response-transform' ? responseTransformView : null,
+        view === 'network-controls' ? networkControlsView : null,
         view === 'config' ? configView : null,
         view === 'keys' ? keysView : null
       )

@@ -7,6 +7,11 @@ import reactAdminPageTemplate from "./ui/templates/react_admin_page.html";
 import reactAdminViewGeneralTemplate from "./ui/templates/react_admin_view_general.html";
 import reactAdminViewConfigTemplate from "./ui/templates/react_admin_view_config.html";
 import reactAdminViewKeysTemplate from "./ui/templates/react_admin_view_keys.html";
+import reactAdminViewLoggingTemplate from "./ui/templates/react_admin_view_logging.html";
+import reactAdminViewSandboxTemplate from "./ui/templates/react_admin_view_sandbox.html";
+import reactAdminViewRequestTransformTemplate from "./ui/templates/react_admin_view_request_transform.html";
+import reactAdminViewResponseTransformTemplate from "./ui/templates/react_admin_view_response_transform.html";
+import reactAdminViewNetworkControlsTemplate from "./ui/templates/react_admin_view_network_controls.html";
 import reactRuntimeTemplate from "./ui/templates/react_runtime.html";
 import reactDomRuntimeTemplate from "./ui/templates/react_dom_runtime.html";
 import secretFieldTemplate from "./ui/templates/secret_field.html";
@@ -27,6 +32,11 @@ const templates = {
   react_admin_view_general: reactAdminViewGeneralTemplate,
   react_admin_view_config: reactAdminViewConfigTemplate,
   react_admin_view_keys: reactAdminViewKeysTemplate,
+  react_admin_view_logging: reactAdminViewLoggingTemplate,
+  react_admin_view_sandbox: reactAdminViewSandboxTemplate,
+  react_admin_view_request_transform: reactAdminViewRequestTransformTemplate,
+  react_admin_view_response_transform: reactAdminViewResponseTransformTemplate,
+  react_admin_view_network_controls: reactAdminViewNetworkControlsTemplate,
   react_runtime: reactRuntimeTemplate,
   react_dom_runtime: reactDomRuntimeTemplate,
   init_admin_login_script: initAdminLoginScriptTemplate,
@@ -139,6 +149,11 @@ export function renderReactAdminPage({ adminApiRoot = "/admin", loginRoot = "/_l
     react_admin_view_general_js: templates.react_admin_view_general || "",
     react_admin_view_config_js: templates.react_admin_view_config || "",
     react_admin_view_keys_js: templates.react_admin_view_keys || "",
+    react_admin_view_logging_js: templates.react_admin_view_logging || "",
+    react_admin_view_sandbox_js: templates.react_admin_view_sandbox || "",
+    react_admin_view_request_transform_js: templates.react_admin_view_request_transform || "",
+    react_admin_view_response_transform_js: templates.react_admin_view_response_transform || "",
+    react_admin_view_network_controls_js: templates.react_admin_view_network_controls || "",
   });
   return new Response(
     htmlPage("", bodyHtml),
