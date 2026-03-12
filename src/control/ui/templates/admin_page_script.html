@@ -406,6 +406,7 @@
           const title = el('request-secret-edit-title');
           const desc = el('request-secret-edit-text');
           const input = el('request-secret-edit-input');
+          const toggle = el('request-secret-edit-toggle');
           const label = requestSecretLabel(slot);
           requestSecretEditState = { slot, action };
           if (title) title.textContent = (action === 'add' ? 'Add ' : 'Update ') + label;
@@ -414,6 +415,7 @@
             input.value = '';
             input.type = 'password';
           }
+          if (toggle) toggle.textContent = 'show';
           if (modal && typeof modal.showModal === 'function') {
             if (!modal.open) modal.showModal();
           }
@@ -463,6 +465,15 @@
             const modal = el('request-secret-edit-modal');
             if (modal?.open) modal.close();
             requestSecretEditState = null;
+          });
+          bindOnce('request-secret-edit-toggle', (evt) => {
+            evt.preventDefault();
+            const input = el('request-secret-edit-input');
+            const toggle = el('request-secret-edit-toggle');
+            if (!input || !toggle) return;
+            const isHidden = input.type === 'password';
+            input.type = isHidden ? 'text' : 'password';
+            toggle.textContent = isHidden ? 'hide' : 'show';
           });
           bindOnce('request-secret-edit-save-btn', async () => {
             const modal = el('request-secret-edit-modal');

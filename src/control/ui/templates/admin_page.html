@@ -41,7 +41,7 @@
          </div>
          <div style="flex:1;min-width:0;">
         <div id="tab-overview" class="tab-panel">
-          <p><b>General</b></p>
+          <p style="margin:0 0 10px 0;font-size:20px;"><b>General</b></p>
           <div id="overview-output" style="padding:12px;border:1px solid #ddd;border-radius:8px;line-height:1.6;">Loading status...</div>
           <label for="proxy-name" style="display:block;margin:8px 0 4px;">Proxy name</label>
           <input id="proxy-name" type="text" placeholder="friendly name"
@@ -92,7 +92,7 @@
         </div>
         </div>
         <div id="tab-debug" class="tab-panel" style="display:none;">
-           <p><b>Logging controls</b></p>
+           <p style="margin:0 0 10px 0;font-size:20px;"><b>Logging controls</b></p>
            <div id="logging-status" style="padding:12px;border:1px solid #ddd;border-radius:8px;line-height:1.6;margin:10px 0;">Loading logging status...</div>
            <p style="margin-top:6px;margin-bottom:4px;">Current logging session expires at: <span id="logging-session-expires-at">n/a</span> (<span id="logging-ttl-remaining-hours">n/a</span> remaining)</p>
            <label for="logging-ttl-preset" style="display:block;margin:8px 0 4px;">Logging TTL</label>
@@ -132,7 +132,7 @@
           </div>
         </div>
         <div id="tab-config" class="tab-panel" style="display:none;">
-           <p><b>YAML Configuration</b></p>
+           <p style="margin:0 0 10px 0;font-size:20px;"><b>YAML Configuration</b></p>
            <div id="config-edit-warning" style="margin:0 0 8px 0;padding:10px 12px;border:1px solid #fdba74;background:#fff7ed;color:#9a3412;border-radius:8px;line-height:1.5;">
              Warning: Direct YAML edits can break runtime behavior. Unlock editing only if you understand the config schema.
            </div>
@@ -153,7 +153,7 @@
           </div>
         </div>
         <div id="tab-outbound-transform" class="tab-panel" style="display:none;">
-           <p><b>Response Transformations</b></p>
+           <p style="margin:0 0 10px 0;font-size:20px;"><b>Response Transformations</b></p>
            <p style="margin:10px 0 6px;"><b>Transformation Rules</b></p>
            <label style="display:flex;gap:8px;align-items:center;margin:8px 0 10px;">
              <input id="outbound-transform-enabled" type="checkbox" />
@@ -182,7 +182,7 @@
           </div>
         </div>
         <div id="tab-inbound-auth" class="tab-panel" style="display:none;">
-           <p><b>API Keys</b></p>
+           <p style="margin:0 0 10px 0;font-size:20px;"><b>API Keys</b></p>
            <p style="margin:6px 0 10px;color:#64748b;">Manage key lifecycles and request authentication settings.</p>
            <p><b>Proxy Key</b></p>
            <label for="kr-proxy-expiry" style="display:block;margin:10px 0 4px;">Expiration</label>
@@ -294,7 +294,7 @@
           </div>
         </div>
         <div id="tab-inbound-traffic-controls" class="tab-panel" style="display:none;">
-          <p><b>Source Network Controls</b></p>
+          <p style="margin:0 0 10px 0;font-size:20px;"><b>Source Network Controls</b></p>
           <div style="padding:10px 12px;border:1px solid #fecaca;background:#fff1f2;color:#991b1b;border-radius:8px;line-height:1.6;">
             Warning: Prefer external network controls; use in-app controls only when edge/network policy is unavailable.
           </div>
@@ -332,7 +332,7 @@
           </div>
         </div>
         <div id="tab-inbound-transform" class="tab-panel" style="display:none;">
-           <p><b>Request Transformations</b></p>
+           <p style="margin:0 0 10px 0;font-size:20px;"><b>Request Transformations</b></p>
            <p style="margin:10px 0 6px;"><b>Transformation Rules</b></p>
            <label style="display:flex;gap:8px;align-items:center;margin:8px 0 10px;">
              <input id="inbound-transform-enabled" type="checkbox" />
@@ -360,7 +360,7 @@
           </div>
         </div>
          <div id="tab-sandbox" class="tab-panel" style="display:none;">
-           <p><b>API Sandbox</b></p>
+           <p style="margin:0 0 10px 0;font-size:20px;"><b>API Sandbox</b></p>
            <div style="flex:1;min-width:340px;">
            <label style="display:block;margin:4px 0 4px;">Built-in Auth Header</label>
            <select id="sandbox-auth-mode" style="width:100%;max-width:420px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;">
@@ -472,11 +472,14 @@
         </div>
         <pre id="config-diff-output" style="margin-top:10px;padding:12px;border:1px solid #ddd;border-radius:8px;white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;"></pre>
       </dialog>
-      <dialog id="request-secret-edit-modal" style="max-width:520px;border:1px solid #e2e8f0;border-radius:10px;padding:16px;">
+      <dialog id="request-secret-edit-modal" style="max-width:760px;width:92vw;border:1px solid #e2e8f0;border-radius:10px;padding:16px;">
         <p id="request-secret-edit-title" style="margin-top:0;"><b>Update Secret</b></p>
         <p id="request-secret-edit-text" style="margin:8px 0 10px 0;">Enter a new secret value.</p>
-        <input id="request-secret-edit-input" type="password" placeholder="Enter secret value"
-          style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />
+        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+          <input id="request-secret-edit-input" type="password" placeholder="Enter secret value"
+            style="flex:1;min-width:420px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />
+          <a href="#" id="request-secret-edit-toggle" style="font-size:12px;text-decoration:underline;">show</a>
+        </div>
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
           <button type="button" id="request-secret-edit-cancel-btn">Cancel</button>
           <button type="button" id="request-secret-edit-save-btn" style="background:#0f172a;color:#fff;border:1px solid #0f172a;padding:8px 12px;border-radius:8px;">Save Secret</button>
