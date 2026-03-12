@@ -143,6 +143,7 @@
           const disableHeaders = !!options?.disableHeaders;
           const disableBody = !!options?.disableBody;
           const enableHttpAuthorization = !!options?.enableHttpAuthorization;
+          const hideAuthTypeSelector = !!options?.hideAuthTypeSelector;
           const fixedKeyRotationProfile = options?.fixedKeyRotationProfile || fixedKeyRotationProfileFor(prefix);
           const verbOptions = verbs
             .map((verb) => '<option value="' + htmlEscape(String(verb).toUpperCase()) + '">' + htmlEscape(String(verb).toUpperCase()) + '</option>')
@@ -179,13 +180,15 @@
             + '</div>'
             + (enableHttpAuthorization
               ? ('<div style="margin-top:12px;padding-top:10px;border-top:1px solid #e2e8f0;">'
-                + '<label for="' + prefix + '-auth-type" style="display:block;margin:0 0 4px;">Authentication Type</label>'
-                + '<select id="' + prefix + '-auth-type" style="width:100%;max-width:260px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;">'
-                + '<option value="none">None</option>'
-                + '<option value="static">Static</option>'
-                + '<option value="oauth_client_credentials">OAuth</option>'
-                + '<option value="key_rotation">Generic TTL Rotation</option>'
-                + '</select>'
+                + (hideAuthTypeSelector
+                  ? ('<input id="' + prefix + '-auth-type" type="hidden" value="none" />')
+                  : ('<label for="' + prefix + '-auth-type" style="display:block;margin:0 0 4px;">Authentication Type</label>'
+                    + '<select id="' + prefix + '-auth-type" style="width:100%;max-width:260px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;">'
+                    + '<option value="none">None</option>'
+                    + '<option value="static">Static</option>'
+                    + '<option value="oauth_client_credentials">OAuth</option>'
+                    + '<option value="key_rotation">Generic TTL Rotation</option>'
+                    + '</select>'))
                 + '<div id="' + prefix + '-auth-static-wrap" style="display:none;">'
                 + '<label for="' + prefix + '-auth-header-name" style="display:block;margin:10px 0 4px;">Auth header name</label>'
                 + '<input id="' + prefix + '-auth-header-name" type="text" placeholder="Authorization"'
@@ -2644,6 +2647,7 @@
           if (el('kr-request-form')) {
             setHtml('kr-request-form', renderRequestForm('kr', {
               enableHttpAuthorization: true,
+              hideAuthTypeSelector: true,
               fixedKeyRotationProfile: 'target',
             }));
             bindRequestFormToggles('kr');
