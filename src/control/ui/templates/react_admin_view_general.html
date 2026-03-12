@@ -28,7 +28,10 @@ const generalView = e('div', {},
           e('div', { className: 'ra-secret-chip-head' },
             e('div', { className: 'ra-secret-chip-title' }, slotLabel(slot, secretNames[slot])),
             e('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' } },
-              e('span', { className: 'ra-secret-chip-status ' + (isSet ? 'set' : 'unset') }, isSet ? 'Set' : 'Not set'),
+              e('span', {
+                className: 'ra-dim',
+                style: { fontSize: '12px', color: isSet ? '#166534' : '#64748b' },
+              }, isSet ? 'Set' : 'Not set'),
               e('button', {
                 type: 'button',
                 className: 'ra-link-btn',
@@ -36,8 +39,12 @@ const generalView = e('div', {},
               }, isOpen ? 'Close' : (isSet ? 'Update' : 'Add')),
               isSet ? e('button', {
                 type: 'button',
-                className: 'ra-link-btn danger',
-                onClick: () => confirmAndRemoveSecretSlot(slot),
+                className: 'ra-link-btn',
+                style: { color: '#b91c1c' },
+                onClick: async () => {
+                  if (!window.confirm('Are you sure you want to remove this secret?')) return;
+                  await removeSecretSlot(slot);
+                },
                 disabled: secretBusy,
               }, 'Remove') : null
             )
