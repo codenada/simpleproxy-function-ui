@@ -154,7 +154,7 @@
           };
           return ''
             + '<div style="margin-top:10px;">'
-            + '<label style="display:block;margin:0 0 4px;">Secrets</label>'
+            + '<p style="margin:0 0 6px;"><b>Secrets</b></p>'
             + '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
             + renderChip('secret1', 'Secret1')
             + renderChip('secret2', 'Secret2')
@@ -201,10 +201,11 @@
                     + '<option value="advanced">Advanced (OAuth/Rotation)</option>'
                 + '</select>'))
                 + renderRequestSecretSlotsCompact(prefix)
-            + '<div id="' + prefix + '-oauth-preset-wrap" style="margin-top:8px;display:none;">'
-            + '<button type="button" id="' + prefix + '-oauth-preset-btn"'
-            + ' style="padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#0f172a;">Fill OAuth Preset</button>'
-            + '</div>'
+                + '<div id="' + prefix + '-oauth-preset-wrap" style="margin-top:8px;display:none;">'
+                + '<p style="margin:0 0 6px;"><b>Presets</b></p>'
+                + '<button type="button" id="' + prefix + '-oauth-preset-btn"'
+                + ' style="padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#0f172a;">Fill OAuth Preset</button>'
+                + '</div>'
             + '<div id="' + prefix + '-auth-static-wrap" style="display:none;">'
                 + '<label for="' + prefix + '-auth-header-name" style="display:block;margin:10px 0 4px;">Auth header name</label>'
                 + '<input id="' + prefix + '-auth-header-name" type="text" placeholder="Authorization"'
