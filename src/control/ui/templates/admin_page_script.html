@@ -1,6 +1,7 @@
 <script>
          const ADMIN_ROOT = '{{admin_root}}';
          const ADMIN_ACCESS_TOKEN_STORAGE = 'apiproxy_admin_access_token_v1';
+         const LIVE_LOG_ACCESS_TOKEN_STORAGE = 'apiproxy_live_log_access_token_v1';
          let currentKey = '';
         let pendingDeleteHeaderName = '';
         let configValidateTimer = null;
@@ -2783,7 +2784,8 @@
               showWarning('Login required.');
               return;
             }
-            const pageUrl = ADMIN_ROOT + '/live-log?admin_access_token=' + encodeURIComponent(currentKey);
+            try { localStorage.setItem(LIVE_LOG_ACCESS_TOKEN_STORAGE, currentKey); } catch {}
+            const pageUrl = ADMIN_ROOT + '/live-log';
             window.open(pageUrl, '_blank', 'noopener,noreferrer');
           });
           el('live-log-close-btn')?.addEventListener('click', () => {
@@ -3082,6 +3084,12 @@
              const queryToken = String(params.get('admin_access_token') || '').trim();
              if (queryToken) {
                try { sessionStorage.setItem(ADMIN_ACCESS_TOKEN_STORAGE, queryToken); } catch {}
+               try {
+                 params.delete('admin_access_token');
+                 const nextQuery = params.toString();
+                 const cleanUrl = window.location.pathname + (nextQuery ? ('?' + nextQuery) : '') + (window.location.hash || '');
+                 window.history.replaceState(null, '', cleanUrl);
+               } catch {}
              }
              const token = queryToken || sessionStorage.getItem(ADMIN_ACCESS_TOKEN_STORAGE) || '';
             if (token) {

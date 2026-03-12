@@ -1,9 +1,27 @@
 <script>
 (function () {
   const ADMIN_ROOT = '{{admin_root}}';
+  const LIVE_LOG_ACCESS_TOKEN_STORAGE = 'apiproxy_live_log_access_token_v1';
   const LIVE_LOG_MAX_CHARS = 200000;
-  const params = new URLSearchParams(window.location.search || '');
-  const token = String(params.get('admin_access_token') || '').trim();
+  let token = '';
+  try {
+    token = String(localStorage.getItem(LIVE_LOG_ACCESS_TOKEN_STORAGE) || '').trim();
+    if (token) localStorage.removeItem(LIVE_LOG_ACCESS_TOKEN_STORAGE);
+  } catch {}
+  if (!token) {
+    try {
+      const params = new URLSearchParams(window.location.search || '');
+      token = String(params.get('admin_access_token') || '').trim();
+      if (token) {
+        try {
+          params.delete('admin_access_token');
+          const nextQuery = params.toString();
+          const cleanUrl = window.location.pathname + (nextQuery ? ('?' + nextQuery) : '') + (window.location.hash || '');
+          window.history.replaceState(null, '', cleanUrl);
+        } catch {}
+      }
+    } catch {}
+  }
   const outputNode = document.getElementById('live-log-output');
   const statusNode = document.getElementById('live-log-status');
   const reconnectLink = document.getElementById('live-log-reconnect-link');
