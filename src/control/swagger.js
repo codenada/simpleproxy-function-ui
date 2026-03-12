@@ -125,7 +125,7 @@ function createSwaggerApi({ htmlPage, reservedRoot, adminRoot }) {
           delete: { summary: "Delete http_auth profile secrets", security: [{ AdminKeyHeader: [] }, { AdminBearer: [] }], responses: { "200": { description: "Deleted" } } },
         },
         [`${adminRoot}/http-secrets/{ref}`]: {
-          parameters: [{ name: "ref", in: "path", required: true, schema: { type: "string", enum: ["secret_1", "secret_2"] } }],
+          parameters: [{ name: "ref", in: "path", required: true, schema: { type: "string", enum: ["secret1", "secret2"] } }],
           get: { summary: "Get HTTP secret set status", security: [{ AdminKeyHeader: [] }, { AdminBearer: [] }], responses: { "200": { description: "Status" } } },
           put: { summary: "Set HTTP secret value (non-empty string, max 4096 chars, no control chars)", security: [{ AdminKeyHeader: [] }, { AdminBearer: [] }], requestBody: jsonBody, responses: { "200": { description: "Saved" } } },
           delete: { summary: "Delete HTTP secret", security: [{ AdminKeyHeader: [] }, { AdminBearer: [] }], responses: { "200": { description: "Deleted" } } },

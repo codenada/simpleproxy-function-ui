@@ -61,7 +61,7 @@
           </select>
 
           <div id="outbound-auth-detail-fields">
-          <p style="margin:10px 0 6px;"><b>Request</b></p>
+          <p id="kr-request-heading" style="margin:10px 0 6px;"><b>Request</b></p>
           <div id="kr-request-form"></div>
           <div id="kr-rotation-fields">
           <label for="kr-key-path" style="display:block;margin:10px 0 4px;">Response Key Path</label>
@@ -123,7 +123,7 @@
              <option value="key_rotation">Generic TTL Rotation</option>
            </select>
            <div id="logging-config-fields" style="display:none;">
-             <p style="margin:10px 0 6px;"><b>Logging Request</b></p>
+             <p id="logging-req-request-heading" style="margin:10px 0 6px;"><b>Logging Request</b></p>
              <div id="logging-request-form"></div>
              <div id="logging-secret-wrap">
                <div id="logging-secret-template"></div>
@@ -236,7 +236,7 @@
                <input id="jwt-inbound-audience" type="text" placeholder="aud"
                  style="width:100%;max-width:520px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />
               <div id="jwt-inbound-jwks-fields" style="display:none;">
-                <p style="margin:8px 0 6px;"><b>JWKS Request</b></p>
+                <p id="jwt-jwks-request-heading" style="margin:8px 0 6px;"><b>JWKS Request</b></p>
                 <div id="jwt-jwks-request-form"></div>
               </div>
               <div id="jwt-inbound-secret-template" style="margin-top:12px;"></div>
@@ -477,12 +477,14 @@
         </div>
         <pre id="config-diff-output" style="margin-top:10px;padding:12px;border:1px solid #ddd;border-radius:8px;white-space:pre-wrap;word-break:break-word;max-height:420px;overflow:auto;"></pre>
       </dialog>
-      <dialog id="request-secret-replace-modal" style="max-width:520px;border:1px solid #e2e8f0;border-radius:10px;padding:16px;">
-        <p style="margin-top:0;"><b>Replace existing secret?</b></p>
-        <p id="request-secret-replace-text" style="margin:8px 0 12px 0;">Saving will replace the current secret value.</p>
-        <div style="display:flex;gap:8px;justify-content:flex-end;">
-          <button type="button" id="request-secret-replace-cancel-btn">Cancel</button>
-          <button type="button" id="request-secret-replace-confirm-btn" style="background:#0f172a;color:#fff;border:1px solid #0f172a;padding:8px 12px;border-radius:8px;">Replace</button>
+      <dialog id="request-secret-edit-modal" style="max-width:520px;border:1px solid #e2e8f0;border-radius:10px;padding:16px;">
+        <p id="request-secret-edit-title" style="margin-top:0;"><b>Update Secret</b></p>
+        <p id="request-secret-edit-text" style="margin:8px 0 10px 0;">Enter a new secret value.</p>
+        <input id="request-secret-edit-input" type="password" placeholder="Enter secret value"
+          style="width:100%;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;">
+          <button type="button" id="request-secret-edit-cancel-btn">Cancel</button>
+          <button type="button" id="request-secret-edit-save-btn" style="background:#0f172a;color:#fff;border:1px solid #0f172a;padding:8px 12px;border-radius:8px;">Save Secret</button>
         </div>
       </dialog>
 <script src="https://cdn.jsdelivr.net/npm/js-yaml@4.1.0/dist/js-yaml.min.js"></script>

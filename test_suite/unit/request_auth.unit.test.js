@@ -21,7 +21,7 @@ function makeApi(kv, opts = {}) {
     getPathValue: (obj, path) => path.split(".").reduce((cur, p) => (cur && p in cur ? cur[p] : null), obj),
     authProfilePrefix: (p) => (p === "target" ? "auth/target" : p === "logging" ? "auth/logging" : null),
     authProfileKvKey: (p, f) => (p ? `auth/${p}/${f}` : null),
-    httpSecretKvKey: (ref) => (["secret_1", "secret_2"].includes(String(ref || "")) ? `secret/${ref}` : null),
+    httpSecretKvKey: (ref) => (["secret1", "secret2"].includes(String(ref || "")) ? `secret/${ref}` : null),
     kvGetValue: kv.get,
     kvPutValue: kv.put,
     authProfileFields: ["current", "secondary", "issued_at_ms", "expires_at_ms", "secondary_issued_at_ms", "secondary_expires_at_ms"],
@@ -60,7 +60,7 @@ test("resolveAuthProfileHeaders substitutes profile placeholders", async () => {
 
 test("buildHttpRequestInit handles static secret auth and body types", async () => {
   const kv = createKv();
-  await kv.put({}, "secret/secret_1", "sekret");
+  await kv.put({}, "secret/secret1", "sekret");
   const api = makeApi(kv);
 
   const jsonInit = await api.buildHttpRequestInit(
@@ -68,8 +68,8 @@ test("buildHttpRequestInit handles static secret auth and body types", async () 
       method: "POST",
       http_authorization: {
         type: "static",
-        secret_ref: "secret_1",
-        headers: { Authorization: "Bearer {{secret_1}}" },
+        secret_ref: "secret1",
+        headers: { Authorization: "Bearer {{secret1}}" },
       },
       body: { type: "json", value: { a: 1 } },
     },
@@ -156,8 +156,8 @@ test("buildHttpRequestInit throws for missing static secret", async () => {
           method: "GET",
           http_authorization: {
             type: "static",
-            secret_ref: "secret_2",
-            headers: { Authorization: "Bearer {{secret_2}}" },
+            secret_ref: "secret2",
+            headers: { Authorization: "Bearer {{secret2}}" },
           },
         },
         {},

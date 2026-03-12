@@ -19,7 +19,7 @@ const CONFIG_CONTRACT_ROWS = [
   { path: "$.http_requests.<name>.security.allowed_hosts", type: "array", constraints: "array of non-empty host strings" },
   { path: "$.http_requests.<name>.http_authorization.type", type: "string", constraints: "static|key_rotation" },
   { path: "$.http_requests.<name>.http_authorization.static.headers", type: "object", constraints: "header values must be strings" },
-  { path: "$.http_requests.<name>.http_authorization.static.secret_ref", type: "string|null", constraints: "if set, must be one of secret_1|secret_2" },
+  { path: "$.http_requests.<name>.http_authorization.static.secret_ref", type: "string|null", constraints: "if set, must be one of secret1|secret2" },
   { path: "$.http_requests.<name>.http_authorization.key_rotation.profile", type: "string|null", constraints: "supported profile name" },
   { path: "$.http_requests.<name>.http_authorization.key_rotation.auth_headers", type: "object|array", constraints: "object or [{name,value}] with string values" },
   { path: "$.http_requests.<name>.http_authorization.key_rotation.key_rotation_http_response", type: "object", constraints: "values must be strings" },

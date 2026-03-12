@@ -1,4 +1,4 @@
-const HTTP_SECRET_REFS = Object.freeze(["secret_1", "secret_2"]);
+const HTTP_SECRET_REFS = Object.freeze(["secret1", "secret2"]);
 const HTTP_SECRET_REF_SET = new Set(HTTP_SECRET_REFS);
 const HTTP_SECRET_MAX_LENGTH = 4096;
 

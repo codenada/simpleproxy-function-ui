@@ -33,7 +33,7 @@
           "jwt-jwks": "jwt_inbound",
           "logging-req": "logging",
         });
-        const HTTP_SECRET_REF_OPTIONS = Object.freeze(["secret_1", "secret_2"]);
+        const HTTP_SECRET_REF_OPTIONS = Object.freeze(["secret1", "secret2"]);
 {{sandbox_templates_js}}
         const SANDBOX_REDACT_HEADERS = new Set([
           'authorization',
@@ -53,10 +53,10 @@
           }
         })();
         const requestSecretSlotState = {
-          secret_1: { exists: false },
-          secret_2: { exists: false },
+          secret1: { exists: false },
+          secret2: { exists: false },
         };
-        let requestSecretReplaceModalResolve = null;
+        let requestSecretEditState = null;
 
         function el(id) { return document.getElementById(id); }
         function bindOnce(id, handler) {
@@ -142,31 +142,21 @@
               : '');
         }
         function renderRequestSecretSlotsCompact(prefix) {
-          const renderRow = (slot, label) => {
-            const suffix = slot === 'secret_2' ? '2' : '1';
-            const inputId = prefix + '-secret-' + suffix + '-input';
-            const toggleId = prefix + '-secret-' + suffix + '-toggle';
-            const saveId = prefix + '-secret-' + suffix + '-save-btn';
+          const renderChip = (slot, label) => {
+            const suffix = slot === 'secret2' ? '2' : '1';
             const chipId = prefix + '-secret-' + suffix + '-chip';
-            const unsavedId = prefix + '-secret-' + suffix + '-unsaved';
-            return ''
-              + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0;">'
-              + '<span style="min-width:62px;font-size:12px;color:#334155;font-weight:600;">' + htmlEscape(label) + '</span>'
-              + '<span id="' + chipId + '" style="display:inline-block;padding:1px 8px;border-radius:999px;border:1px solid #cbd5e1;background:#f8fafc;color:#334155;font-size:11px;font-weight:600;">Unknown</span>'
-              + '<input id="' + inputId + '" type="password" data-local-save="1" placeholder="set value"'
-              + ' style="width:220px;max-width:100%;padding:6px 8px;border:1px solid #cbd5e1;border-radius:8px;" />'
-              + '<a href="#" id="' + toggleId + '" data-local-save="1" style="font-size:12px;text-decoration:underline;">show</a>'
-              + '<button type="button" id="' + saveId + '" data-local-save="1"'
-              + ' style="padding:5px 10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#0f172a;">Save</button>'
-              + '<span id="' + unsavedId + '" style="display:none;font-size:11px;color:#c2410c;font-weight:600;">Unsaved</span>'
-              + '</div>';
+            return '<span id="' + chipId + '"'
+              + ' style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;border:1px solid #cbd5e1;background:#f8fafc;color:#334155;font-size:12px;">'
+              + htmlEscape(label) + '</span>';
           };
           return ''
             + '<div style="margin-top:10px;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;">'
-            + '<div style="font-size:12px;color:#334155;font-weight:700;margin-bottom:4px;">Request secret slots</div>'
-            + renderRow('secret_1', 'Secret 1')
-            + renderRow('secret_2', 'Secret 2')
-            + '<div style="font-size:11px;color:#64748b;margin-top:4px;">Write-only. Saved per slot (`secret_1`/`secret_2`) for this auth request profile.</div>'
+            + '<div style="font-size:12px;color:#334155;font-weight:700;margin-bottom:6px;">Request secret slots</div>'
+            + '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
+            + renderChip('secret1', 'Secret1')
+            + renderChip('secret2', 'Secret2')
+            + '</div>'
+            + '<div style="font-size:11px;color:#64748b;margin-top:4px;">Write-only slots: `secret1` and `secret2`.</div>'
             + '</div>';
         }
         function renderRequestForm(prefix, options) {
@@ -184,6 +174,7 @@
             .map((verb) => '<option value="' + htmlEscape(String(verb).toUpperCase()) + '">' + htmlEscape(String(verb).toUpperCase()) + '</option>')
             .join('');
           return ''
+            + '<div id="' + prefix + '-request-core-wrap">'
             + '<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">'
             + '<div style="min-width:110px;max-width:120px;flex:0 0 120px;">'
             + '<label for="' + prefix + '-verb" style="display:block;margin:8px 0 4px;">Method</label>'
@@ -213,6 +204,7 @@
             + '<textarea id="' + prefix + '-body" rows="8" placeholder="JSON or raw text" ' + (disableBody ? 'disabled ' : '')
             + 'style="width:100%;max-width:740px;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;' + (disableBody ? 'background:#f8fafc;' : '') + '"></textarea>'
             + '</div>'
+            + '</div>'
             + (enableHttpAuthorization
               ? ('<div style="margin-top:12px;padding-top:10px;border-top:1px solid #e2e8f0;">'
                 + (hideAuthTypeSelector
@@ -233,8 +225,8 @@
                 + '<select id="' + prefix + '-auth-secret-ref"'
                 + ' style="width:100%;max-width:360px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;">'
                 + '<option value="">Select secret slot</option>'
-                + '<option value="secret_1">secret_1</option>'
-                + '<option value="secret_2">secret_2</option>'
+                + '<option value="secret1">secret1</option>'
+                + '<option value="secret2">secret2</option>'
                 + '</select>'
                 + '<div style="font-size:12px;color:#64748b;margin-top:4px;">Select which saved slot to inject into the auth header.</div>'
                 + '</div>'
@@ -250,10 +242,20 @@
         }
         function setRequestAuthMode(prefix, type) {
           const mode = String(type || 'none');
+          const requestCoreWrap = el(prefix + '-request-core-wrap');
+          const requestHeading = el(prefix + '-request-heading');
           if (el(prefix + '-auth-type')) el(prefix + '-auth-type').value = mode;
           if (el(prefix + '-auth-static-wrap')) el(prefix + '-auth-static-wrap').style.display = mode === 'static' ? 'block' : 'none';
           if (el(prefix + '-auth-key-rotation-wrap')) {
             el(prefix + '-auth-key-rotation-wrap').style.display =
+              (mode === 'key_rotation' || mode === 'oauth_client_credentials') ? 'block' : 'none';
+          }
+          if (requestCoreWrap) {
+            requestCoreWrap.style.display =
+              (mode === 'key_rotation' || mode === 'oauth_client_credentials') ? 'block' : 'none';
+          }
+          if (requestHeading) {
+            requestHeading.style.display =
               (mode === 'key_rotation' || mode === 'oauth_client_credentials') ? 'block' : 'none';
           }
         }
@@ -337,45 +339,27 @@
             toggle.textContent = isHidden ? 'hide' : 'show';
           });
         }
-        function requestSecretInputId(prefix, slot) {
-          const suffix = slot === 'secret_2' ? '2' : '1';
-          return prefix + '-secret-' + suffix + '-input';
-        }
-        function requestSecretUnsavedId(prefix, slot) {
-          const suffix = slot === 'secret_2' ? '2' : '1';
-          return prefix + '-secret-' + suffix + '-unsaved';
-        }
         function requestSecretChipId(prefix, slot) {
-          const suffix = slot === 'secret_2' ? '2' : '1';
+          const suffix = slot === 'secret2' ? '2' : '1';
           return prefix + '-secret-' + suffix + '-chip';
         }
-        function requestSecretSaveButtonId(prefix, slot) {
-          const suffix = slot === 'secret_2' ? '2' : '1';
-          return prefix + '-secret-' + suffix + '-save-btn';
-        }
-        function requestSecretToggleId(prefix, slot) {
-          const suffix = slot === 'secret_2' ? '2' : '1';
-          return prefix + '-secret-' + suffix + '-toggle';
+        function requestSecretLabel(slot) {
+          return slot === 'secret2' ? 'Secret2' : 'Secret1';
         }
         function setRequestSecretSlotExists(prefix, slot, exists) {
           requestSecretSlotState[slot] = { exists: !!exists };
           const chipNode = el(requestSecretChipId(prefix, slot));
-          const saveBtn = el(requestSecretSaveButtonId(prefix, slot));
           if (chipNode) {
-            chipNode.textContent = exists ? 'Set' : 'Not set';
-            chipNode.style.borderColor = exists ? '#86efac' : '#cbd5e1';
-            chipNode.style.background = exists ? '#ecfdf3' : '#f8fafc';
-            chipNode.style.color = exists ? '#166534' : '#334155';
-          }
-          if (saveBtn) saveBtn.textContent = exists ? 'Replace' : 'Save';
-        }
-        function setRequestSecretSlotDirty(prefix, slot, dirty) {
-          const input = el(requestSecretInputId(prefix, slot));
-          const unsaved = el(requestSecretUnsavedId(prefix, slot));
-          if (unsaved) unsaved.style.display = dirty ? 'inline' : 'none';
-          if (input) {
-            input.style.borderColor = dirty ? '#f59e0b' : '#cbd5e1';
-            input.style.background = dirty ? '#fffbeb' : '#fff';
+            const isSet = !!exists;
+            chipNode.style.borderColor = isSet ? '#86efac' : '#cbd5e1';
+            chipNode.style.background = isSet ? '#ecfdf3' : '#f8fafc';
+            chipNode.style.color = isSet ? '#166534' : '#334155';
+            chipNode.innerHTML = ''
+              + '<span style="font-weight:600;">' + requestSecretLabel(slot) + (isSet ? '' : ' (empty)') + '</span>'
+              + (isSet
+                ? ('<a href="#" data-secret-action="update" data-secret-slot="' + slot + '" style="font-size:11px;color:inherit;text-decoration:underline;">update</a>'
+                  + '<a href="#" data-secret-action="delete" data-secret-slot="' + slot + '" style="font-size:11px;color:inherit;text-decoration:underline;">delete</a>')
+                : ('<a href="#" data-secret-action="add" data-secret-slot="' + slot + '" style="font-size:11px;color:inherit;text-decoration:underline;">add</a>'));
           }
         }
         async function refreshRequestSecretSlotStatus(prefix, slot) {
@@ -385,88 +369,90 @@
           const exists = !!out?.data?.secret_set;
           setRequestSecretSlotExists(prefix, slot, exists);
         }
-        function showRequestSecretReplaceModal(slot) {
-          const modal = el('request-secret-replace-modal');
-          const text = el('request-secret-replace-text');
-          if (!modal || typeof modal.showModal !== 'function') {
-            return Promise.resolve(window.confirm('Replace existing secret in ' + slot + '?'));
-          }
-          if (text) text.textContent = 'Replace existing secret in ' + slot + '?';
-          return new Promise((resolve) => {
-            requestSecretReplaceModalResolve = resolve;
-            if (!modal.open) modal.showModal();
-          });
-        }
-        async function saveRequestSecretSlot(prefix, slot) {
-          const input = el(requestSecretInputId(prefix, slot));
-          const rawValue = String(input?.value || '');
+        async function saveRequestSecretSlotValue(slot, rawValue) {
           if (!rawValue.trim()) throw new Error('Secret value is required.');
-          if (requestSecretSlotState[slot]?.exists) {
-            const confirmed = await showRequestSecretReplaceModal(slot);
-            if (!confirmed) return;
-          }
           if (rawValue.length > 4096) throw new Error('Secret value is too long (max 4096 chars).');
           if (/[\u0000-\u001f\u007f]/.test(rawValue)) throw new Error('Secret value contains disallowed control characters.');
           await apiCall(ADMIN_ROOT + '/http-secrets/' + encodeURIComponent(slot), 'PUT', { value: rawValue });
-          if (input) input.value = '';
-          setRequestSecretSlotDirty(prefix, slot, false);
-          await refreshRequestSecretSlotStatus(prefix, slot);
-          showWarning(slot + ' updated.');
+        }
+        function openRequestSecretEditModal(slot, action) {
+          const modal = el('request-secret-edit-modal');
+          const title = el('request-secret-edit-title');
+          const desc = el('request-secret-edit-text');
+          const input = el('request-secret-edit-input');
+          const label = requestSecretLabel(slot);
+          requestSecretEditState = { slot, action };
+          if (title) title.textContent = (action === 'add' ? 'Add ' : 'Update ') + label;
+          if (desc) desc.textContent = 'Enter a value for ' + label + '.';
+          if (input) {
+            input.value = '';
+            input.type = 'password';
+          }
+          if (modal && typeof modal.showModal === 'function') {
+            if (!modal.open) modal.showModal();
+          }
         }
         async function loadRequestSecretSlotsForPrefix(prefix) {
           await Promise.all([
-            refreshRequestSecretSlotStatus(prefix, 'secret_1'),
-            refreshRequestSecretSlotStatus(prefix, 'secret_2'),
+            refreshRequestSecretSlotStatus(prefix, 'secret1'),
+            refreshRequestSecretSlotStatus(prefix, 'secret2'),
           ]);
-          setRequestSecretSlotDirty(prefix, 'secret_1', false);
-          setRequestSecretSlotDirty(prefix, 'secret_2', false);
         }
         async function refreshRequestSecretSlotsForForms(prefixes) {
           const list = Array.isArray(prefixes) ? prefixes : [];
           await Promise.all(list.map((prefix) => loadRequestSecretSlotsForPrefix(prefix)));
         }
         function bindRequestSecretSlotsForPrefix(prefix) {
-          const bindSlot = (slot) => {
-            const input = el(requestSecretInputId(prefix, slot));
-            const saveBtn = el(requestSecretSaveButtonId(prefix, slot));
-            const toggle = el(requestSecretToggleId(prefix, slot));
-            if (input) {
-              input.addEventListener('input', () => {
-                setRequestSecretSlotDirty(prefix, slot, !!String(input.value || '').trim());
-              });
-            }
-            if (saveBtn) {
-              saveBtn.addEventListener('click', async () => {
+          const bindSlotChip = (slot) => {
+            const chip = el(requestSecretChipId(prefix, slot));
+            if (!chip || chip.dataset.bound === '1') return;
+            chip.addEventListener('click', async (evt) => {
+              const actionNode = evt.target?.closest?.('a[data-secret-action]');
+              if (!actionNode) return;
+              evt.preventDefault();
+              const action = String(actionNode.getAttribute('data-secret-action') || '').trim();
+              const selectedSlot = String(actionNode.getAttribute('data-secret-slot') || slot).trim();
+              if (!selectedSlot) return;
+              if (action === 'delete') {
+                const ok = window.confirm('Delete ' + requestSecretLabel(selectedSlot) + '?');
+                if (!ok) return;
                 try {
-                  await saveRequestSecretSlot(prefix, slot);
+                  await apiCall(ADMIN_ROOT + '/http-secrets/' + encodeURIComponent(selectedSlot), 'DELETE');
                   await refreshRequestSecretSlotsForForms(['kr', 'logging-req', 'jwt-jwks']);
+                  showWarning(requestSecretLabel(selectedSlot) + ' deleted.');
                 } catch (e) {
                   showWarning(String(e.message || e));
                 }
-              });
-            }
-            if (toggle && input) {
-              toggle.addEventListener('click', (evt) => {
-                evt.preventDefault();
-                const isHidden = input.type === 'password';
-                input.type = isHidden ? 'text' : 'password';
-                toggle.textContent = isHidden ? 'hide' : 'show';
-              });
-            }
+                return;
+              }
+              if (action === 'add' || action === 'update') {
+                openRequestSecretEditModal(selectedSlot, action);
+              }
+            });
+            chip.dataset.bound = '1';
           };
-          bindSlot('secret_1');
-          bindSlot('secret_2');
-          bindOnce('request-secret-replace-cancel-btn', () => {
-            const modal = el('request-secret-replace-modal');
+          bindSlotChip('secret1');
+          bindSlotChip('secret2');
+          bindOnce('request-secret-edit-cancel-btn', () => {
+            const modal = el('request-secret-edit-modal');
             if (modal?.open) modal.close();
-            if (requestSecretReplaceModalResolve) requestSecretReplaceModalResolve(false);
-            requestSecretReplaceModalResolve = null;
+            requestSecretEditState = null;
           });
-          bindOnce('request-secret-replace-confirm-btn', () => {
-            const modal = el('request-secret-replace-modal');
-            if (modal?.open) modal.close();
-            if (requestSecretReplaceModalResolve) requestSecretReplaceModalResolve(true);
-            requestSecretReplaceModalResolve = null;
+          bindOnce('request-secret-edit-save-btn', async () => {
+            const modal = el('request-secret-edit-modal');
+            const input = el('request-secret-edit-input');
+            const rawValue = String(input?.value || '');
+            const slot = String(requestSecretEditState?.slot || '').trim();
+            if (!slot) return;
+            try {
+              await saveRequestSecretSlotValue(slot, rawValue);
+              if (modal?.open) modal.close();
+              requestSecretEditState = null;
+              await refreshRequestSecretSlotsForForms(['kr', 'logging-req', 'jwt-jwks']);
+              showWarning(requestSecretLabel(slot) + ' saved.');
+            } catch (e) {
+              showWarning(String(e.message || e));
+            }
           });
         }
         async function saveAuthProfileSecret(profile, inputId, outputId) {
@@ -499,7 +485,7 @@
           if (authType !== 'static') return;
           const secretRef = String(el(prefix + '-auth-secret-ref')?.value || '').trim();
           if (secretRef && !HTTP_SECRET_REF_OPTIONS.includes(secretRef)) {
-            throw new Error('Invalid secret slot. Use secret_1 or secret_2.');
+            throw new Error('Invalid secret slot. Use secret1 or secret2.');
           }
         }
         function headersObjectToMultiline(obj) {

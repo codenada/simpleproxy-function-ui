@@ -30,15 +30,15 @@ test("authProfileKvKey builds field keys only for supported profiles", () => {
 });
 
 test("isValidHttpSecretRef accepts only fixed secret refs", () => {
-  assert.equal(isValidHttpSecretRef("secret_1"), true);
-  assert.equal(isValidHttpSecretRef("secret_2"), true);
+  assert.equal(isValidHttpSecretRef("secret1"), true);
+  assert.equal(isValidHttpSecretRef("secret2"), true);
   assert.equal(isValidHttpSecretRef(""), false);
   assert.equal(isValidHttpSecretRef("secret_3"), false);
   assert.equal(isValidHttpSecretRef("bad value"), false);
 });
 
 test("httpSecretKvKey rejects invalid refs and applies prefix", () => {
-  assert.equal(httpSecretKvKey("secret_1", "http_secret:"), "http_secret:secret_1");
+  assert.equal(httpSecretKvKey("secret1", "http_secret:"), "http_secret:secret1");
   assert.equal(httpSecretKvKey("bad value", "http_secret:"), null);
 });
 
@@ -57,5 +57,5 @@ test("createAuthProfileKeyResolvers returns bound helpers", () => {
   });
   assert.equal(resolvers.authProfilePrefix("jwt_inbound"), "auth/jwt_inbound");
   assert.equal(resolvers.authProfileKvKey("target", "expires_at_ms"), "auth/target/expires_at_ms");
-  assert.equal(resolvers.httpSecretKvKey(HTTP_SECRET_REFS[0]), "http_secret:secret_1");
+  assert.equal(resolvers.httpSecretKvKey(HTTP_SECRET_REFS[0]), "http_secret:secret1");
 });
