@@ -171,26 +171,67 @@
     return out;
   }
 
-  function parseJsonArrayText(rawText, label) {
-    const text = String(rawText || '').trim();
-    if (!text) return [];
-    let parsed = null;
-    try {
-      parsed = JSON.parse(text);
-    } catch {
-      throw new Error(label + ' must be valid JSON.');
-    }
-    if (!Array.isArray(parsed)) {
-      throw new Error(label + ' must be a JSON array.');
-    }
-    return parsed;
-  }
-
   function textToLines(rawText) {
     return String(rawText || '')
       .split(/\r?\n/)
       .map((line) => line.trim())
       .filter(Boolean);
+  }
+
+  function headersObjectToMultiline(obj) {
+    if (!obj || typeof obj !== 'object') return '';
+    return Object.entries(obj)
+      .map(([name, value]) => String(name || '').trim() ? (String(name).trim() + ': ' + String(value ?? '')) : '')
+      .filter(Boolean)
+      .join('\n');
+  }
+
+  function normalizeRuleHeaders(rule) {
+    if (!rule || typeof rule !== 'object') return {};
+    if (Array.isArray(rule.match_headers ?? rule.headers)) {
+      const out = {};
+      (rule.match_headers ?? rule.headers).forEach((item) => {
+        const name = String(item?.name || '').trim();
+        if (!name) return;
+        out[name] = String(item?.value ?? '');
+      });
+      return out;
+    }
+    if (rule.headerMatch && typeof rule.headerMatch === 'object') {
+      const out = {};
+      Object.entries(rule.headerMatch).forEach(([name, value]) => {
+        const n = String(name || '').trim();
+        if (!n) return;
+        out[n] = String(value ?? '');
+      });
+      return out;
+    }
+    return {};
+  }
+
+  function toRuleDrafts(rules, kind) {
+    if (!Array.isArray(rules)) return [];
+    return rules.map((rule) => {
+      const name = String(rule?.name || '').trim();
+      const expr = String(rule?.expr || '');
+      const headersText = headersObjectToMultiline(normalizeRuleHeaders(rule));
+      if (kind === 'request') {
+        const statusList = Array.isArray(rule?.match_status ?? rule?.status) ? (rule.match_status ?? rule.status) : [];
+        return {
+          name,
+          statusCsv: statusList.map((s) => String(s || '')).filter(Boolean).join(', '),
+          headersText,
+          expr,
+        };
+      }
+      const methodList = Array.isArray(rule?.match_method ?? rule?.method) ? (rule.match_method ?? rule.method) : [];
+      return {
+        name,
+        methodCsv: methodList.map((m) => String(m || '')).filter(Boolean).join(', '),
+        headersText,
+        expr,
+      };
+    });
   }
 
   function readBody(type, text) {
@@ -307,23 +348,31 @@
     const [sandboxCurlPreview, setSandboxCurlPreview] = React.useState('');
     const [sandboxResponse, setSandboxResponse] = React.useState('');
     const [sandboxBusy, setSandboxBusy] = React.useState(false);
-    const [legacyEmbedHeights, setLegacyEmbedHeights] = React.useState({});
     const [transformBusy, setTransformBusy] = React.useState(false);
     const [transformMessage, setTransformMessage] = React.useState('');
     const [requestTransformEnabled, setRequestTransformEnabled] = React.useState(false);
     const [requestTransformPreprocessor, setRequestTransformPreprocessor] = React.useState('');
-    const [requestTransformRulesJson, setRequestTransformRulesJson] = React.useState('[]');
+    const [requestRuleDrafts, setRequestRuleDrafts] = React.useState([]);
+    const [requestHeaderMode, setRequestHeaderMode] = React.useState('blacklist');
+    const [requestHeaderNamesText, setRequestHeaderNamesText] = React.useState('');
     const [responseTransformEnabled, setResponseTransformEnabled] = React.useState(true);
     const [responseTransformPreprocessor, setResponseTransformPreprocessor] = React.useState('');
     const [responseHeaderMode, setResponseHeaderMode] = React.useState('blacklist');
     const [responseHeaderNamesText, setResponseHeaderNamesText] = React.useState('');
-    const [responseTransformRulesJson, setResponseTransformRulesJson] = React.useState('[]');
+    const [responseRuleDrafts, setResponseRuleDrafts] = React.useState([]);
     const [networkControlsBusy, setNetworkControlsBusy] = React.useState(false);
     const [networkControlsMessage, setNetworkControlsMessage] = React.useState('');
+    const [networkControlsEnabled, setNetworkControlsEnabled] = React.useState(false);
     const [networkIpFilterEnabled, setNetworkIpFilterEnabled] = React.useState(false);
     const [networkAllowedCidrsText, setNetworkAllowedCidrsText] = React.useState('0.0.0.0/0\n::/0');
     const [networkRpmEnabled, setNetworkRpmEnabled] = React.useState(false);
     const [networkRpmLimit, setNetworkRpmLimit] = React.useState('120');
+    const [adminLoginEnabledText, setAdminLoginEnabledText] = React.useState('Disabled');
+    const [adminLoginRpmText, setAdminLoginRpmText] = React.useState('n/a');
+    const [adminTokenEnabledText, setAdminTokenEnabledText] = React.useState('Disabled');
+    const [adminTokenRpmText, setAdminTokenRpmText] = React.useState('n/a');
+    const [adminIpEnabledText, setAdminIpEnabledText] = React.useState('Disabled');
+    const [adminIpCidrsText, setAdminIpCidrsText] = React.useState('n/a');
     const sandboxTemplates = React.useMemo(() => buildSandboxTemplates(), []);
     const sandboxTemplateOptions = React.useMemo(
       () => Object.entries(sandboxTemplates).map(([key, tpl]) => ({ key, label: String(tpl?.label || key) })),
@@ -399,20 +448,26 @@
       const headerFiltering = targetResponse?.header_filtering || {};
       setRequestTransformEnabled(!!sourceRequest.enabled);
       setRequestTransformPreprocessor(String(sourceRequest.custom_js_preprocessor || ''));
-      setRequestTransformRulesJson(JSON.stringify(Array.isArray(sourceRequest.rules) ? sourceRequest.rules : [], null, 2));
+      setRequestRuleDrafts(toRuleDrafts(sourceRequest.rules, 'request'));
+      const requestHeaderFiltering = sourceRequest?.header_filtering || {};
+      setRequestHeaderMode(String(requestHeaderFiltering.mode || 'blacklist'));
+      setRequestHeaderNamesText(
+        Array.isArray(requestHeaderFiltering.names) ? requestHeaderFiltering.names.map((name) => String(name || '')).join('\n') : ''
+      );
       setResponseTransformEnabled(targetResponse.enabled !== false);
       setResponseTransformPreprocessor(String(targetResponse.custom_js_preprocessor || ''));
       setResponseHeaderMode(String(headerFiltering.mode || 'blacklist'));
       setResponseHeaderNamesText(
         Array.isArray(headerFiltering.names) ? headerFiltering.names.map((name) => String(name || '')).join('\n') : ''
       );
-      setResponseTransformRulesJson(JSON.stringify(Array.isArray(targetResponse.rules) ? targetResponse.rules : [], null, 2));
+      setResponseRuleDrafts(toRuleDrafts(targetResponse.rules, 'response'));
     }
 
     function applyNetworkControlsState(payload) {
       const controls = payload?.data?.traffic_controls || {};
       const ipFilter = controls?.ip_filter || {};
       const requestRateLimit = controls?.request_rate_limit || {};
+      setNetworkControlsEnabled(!!ipFilter.enabled || !!requestRateLimit.enabled);
       setNetworkIpFilterEnabled(!!ipFilter.enabled);
       setNetworkAllowedCidrsText(
         Array.isArray(ipFilter.allowed_cidrs) && ipFilter.allowed_cidrs.length
@@ -444,20 +499,6 @@
         setError(String(err && err.message || err));
       }
     }
-
-    React.useEffect(() => {
-      function onLegacyEmbedMessage(evt) {
-        const data = evt && evt.data;
-        if (!data || typeof data !== 'object') return;
-        if (data.type !== 'legacy-admin-embed-height') return;
-        const tab = String(data.tab || '').trim();
-        const height = Number(data.height || 0);
-        if (!tab || !Number.isFinite(height) || height < 400) return;
-        setLegacyEmbedHeights((prev) => ({ ...prev, [tab]: Math.ceil(height) }));
-      }
-      window.addEventListener('message', onLegacyEmbedMessage);
-      return () => window.removeEventListener('message', onLegacyEmbedMessage);
-    }, []);
 
     React.useEffect(() => {
       if (strategy !== 'static') return;
@@ -505,6 +546,18 @@
             debug: !!debugRes?.data?.enabled,
             enrichments: Array.isArray(headersRes?.enriched_headers) ? headersRes.enriched_headers : [],
           });
+          const adminControls = versionRes?.data?.admin_controls || {};
+          const loginRpm = Number(adminControls?.login_page?.rpm_rate_limit || 0);
+          const tokenRpm = Number(adminControls?.get_admin_token_endpoint?.rpm_rate_limit || 0);
+          const adminCidrs = Array.isArray(adminControls?.ip_filter?.allowed_cidrs)
+            ? adminControls.ip_filter.allowed_cidrs
+            : [];
+          setAdminLoginEnabledText(!!adminControls?.login_page?.enabled ? 'Enabled' : 'Disabled');
+          setAdminLoginRpmText(Number.isFinite(loginRpm) && loginRpm > 0 ? String(loginRpm) : 'n/a');
+          setAdminTokenEnabledText(!!adminControls?.get_admin_token_endpoint?.enabled ? 'Enabled' : 'Disabled');
+          setAdminTokenRpmText(Number.isFinite(tokenRpm) && tokenRpm > 0 ? String(tokenRpm) : 'n/a');
+          setAdminIpEnabledText(!!adminControls?.ip_filter?.enabled ? 'Enabled' : 'Disabled');
+          setAdminIpCidrsText(adminCidrs.length ? adminCidrs.join(', ') : 'n/a');
           applyDebugState(debugRes);
           const d = keyRotation.data || {};
           const req = d.request || {};
@@ -720,16 +773,89 @@
       }
     }
 
+    function setRequestRuleField(index, field, value) {
+      setRequestRuleDrafts((prev) => prev.map((rule, i) => (i === index ? { ...rule, [field]: value } : rule)));
+    }
+
+    function setResponseRuleField(index, field, value) {
+      setResponseRuleDrafts((prev) => prev.map((rule, i) => (i === index ? { ...rule, [field]: value } : rule)));
+    }
+
+    function addRequestRule() {
+      setRequestRuleDrafts((prev) => [...prev, { name: '', statusCsv: '', headersText: '', expr: '' }]);
+    }
+
+    function addResponseRule() {
+      setResponseRuleDrafts((prev) => [...prev, { name: '', methodCsv: '', headersText: '', expr: '' }]);
+    }
+
+    function removeRequestRule(index) {
+      setRequestRuleDrafts((prev) => prev.filter((_, i) => i !== index));
+    }
+
+    function removeResponseRule(index) {
+      setResponseRuleDrafts((prev) => prev.filter((_, i) => i !== index));
+    }
+
+    function parseCsvList(raw) {
+      return String(raw || '')
+        .split(',')
+        .map((item) => item.trim())
+        .filter(Boolean);
+    }
+
+    function buildRequestRulesFromDrafts() {
+      return requestRuleDrafts
+        .map((rule) => ({
+          name: String(rule?.name || '').trim(),
+          expr: String(rule?.expr || ''),
+          match_status: parseCsvList(rule?.statusCsv || ''),
+          match_headers: Object.entries(headersTextToObj(rule?.headersText || ''))
+            .map(([name, value]) => ({ name: String(name || '').trim(), value: String(value ?? '') }))
+            .filter((item) => item.name && item.value),
+        }))
+        .filter((rule) => rule.name && rule.expr.trim())
+        .map((rule) => ({
+          name: rule.name,
+          expr: rule.expr,
+          ...(rule.match_status.length ? { match_status: rule.match_status } : {}),
+          ...(rule.match_headers.length ? { match_headers: rule.match_headers } : {}),
+        }));
+    }
+
+    function buildResponseRulesFromDrafts() {
+      return responseRuleDrafts
+        .map((rule) => ({
+          name: String(rule?.name || '').trim(),
+          expr: String(rule?.expr || ''),
+          match_method: parseCsvList(rule?.methodCsv || '').map((item) => item.toUpperCase()),
+          match_headers: Object.entries(headersTextToObj(rule?.headersText || ''))
+            .map(([name, value]) => ({ name: String(name || '').trim(), value: String(value ?? '') }))
+            .filter((item) => item.name && item.value),
+        }))
+        .filter((rule) => rule.name && rule.expr.trim())
+        .map((rule) => ({
+          name: rule.name,
+          expr: rule.expr,
+          ...(rule.match_method.length ? { match_method: rule.match_method } : {}),
+          ...(rule.match_headers.length ? { match_headers: rule.match_headers } : {}),
+        }));
+    }
+
     async function saveRequestTransformView() {
       setTransformBusy(true);
       setTransformMessage('');
       setError('');
       try {
-        const rules = parseJsonArrayText(requestTransformRulesJson, 'Request transform rules');
+        const rules = buildRequestRulesFromDrafts();
         await apiJson('/transform-config', 'PUT', {
           source_request: {
             enabled: !!requestTransformEnabled,
             custom_js_preprocessor: String(requestTransformPreprocessor || '').trim() || null,
+            header_filtering: {
+              mode: String(requestHeaderMode || 'blacklist'),
+              names: textToLines(requestHeaderNamesText),
+            },
             rules,
           },
         });
@@ -747,7 +873,7 @@
       setTransformMessage('');
       setError('');
       try {
-        const rules = parseJsonArrayText(responseTransformRulesJson, 'Response transform rules');
+        const rules = buildResponseRulesFromDrafts();
         await apiJson('/transform-config', 'PUT', {
           target_response: {
             enabled: !!responseTransformEnabled,
@@ -777,13 +903,14 @@
         if (!Number.isInteger(rpm) || rpm < 1) {
           throw new Error('Rate limit must be an integer >= 1.');
         }
+        const controlsEnabled = !!networkControlsEnabled;
         await apiJson('/network-controls', 'PUT', {
           ip_filter: {
-            enabled: !!networkIpFilterEnabled,
-            allowed_cidrs: textToLines(networkAllowedCidrsText),
+            enabled: controlsEnabled && !!networkIpFilterEnabled,
+            allowed_cidrs: controlsEnabled ? textToLines(networkAllowedCidrsText) : [],
           },
           request_rate_limit: {
-            enabled: !!networkRpmEnabled,
+            enabled: controlsEnabled && !!networkRpmEnabled,
             rpm_rate_limit: rpm,
           },
         });

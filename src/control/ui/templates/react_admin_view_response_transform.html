@@ -1,17 +1,102 @@
 const responseTransformView = e('div', {},
   e('h1', { className: 'ra-title' }, 'Response Transformations'),
-  e('p', { className: 'ra-sub' }, 'Legacy-identical tab embedded from /admin.'),
-  e('div', { className: 'ra-card', style: { padding: 0, overflow: 'hidden' } },
-    e('iframe', {
-      title: 'Legacy Response Transformations',
-      src: '/admin?embed=1&embed_tab=outbound-transform',
-      style: {
-        width: '100%',
-        minHeight: '900px',
-        height: String(legacyEmbedHeights['outbound-transform'] || 1200) + 'px',
-        border: '0',
-        background: '#fff',
+  e('p', { className: 'ra-sub' }, 'Configure target response transformation rules and response header filtering.'),
+  e('div', { className: 'ra-card' },
+    e('label', { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
+      e('input', {
+        type: 'checkbox',
+        checked: responseTransformEnabled,
+        onChange: (ev) => setResponseTransformEnabled(!!ev.target.checked),
+      }),
+      e('span', null, 'Enable response transformations')
+    ),
+    e('label', { className: 'ra-field', htmlFor: 'ra-response-transform-preprocessor' }, 'Custom JS preprocessor (optional)'),
+    e('input', {
+      id: 'ra-response-transform-preprocessor',
+      className: 'ra-input',
+      value: responseTransformPreprocessor,
+      onChange: (ev) => setResponseTransformPreprocessor(ev.target.value),
+      placeholder: 'globalThis.preprocessTargetResponse',
+    }),
+    e('label', { className: 'ra-field', htmlFor: 'ra-response-transform-header-mode' }, 'Header filtering mode'),
+    e('select', {
+      id: 'ra-response-transform-header-mode',
+      className: 'ra-select',
+      value: responseHeaderMode,
+      onChange: (ev) => setResponseHeaderMode(ev.target.value),
+    },
+      e('option', { value: 'blacklist' }, 'blacklist'),
+      e('option', { value: 'whitelist' }, 'whitelist')
+    ),
+    e('label', { className: 'ra-field', htmlFor: 'ra-response-transform-header-names' }, 'Header filtering names (one per line)'),
+    e('textarea', {
+      id: 'ra-response-transform-header-names',
+      className: 'ra-textarea',
+      value: responseHeaderNamesText,
+      onChange: (ev) => setResponseHeaderNamesText(ev.target.value),
+      placeholder: 'set-cookie\nx-powered-by',
+    }),
+    e('p', { style: { margin: '12px 0 6px', fontWeight: 700 } }, 'Transformation Rules'),
+    responseRuleDrafts.length
+      ? responseRuleDrafts.map((rule, idx) => e('div', {
+        key: 'res-rule-' + idx,
+        style: { border: '1px solid #e2e8f0', borderRadius: '10px', padding: '10px', marginTop: '10px' },
       },
-    })
+      e('label', { className: 'ra-field' }, 'Name'),
+      e('input', {
+        className: 'ra-input',
+        value: rule.name || '',
+        onChange: (ev) => setResponseRuleField(idx, 'name', ev.target.value),
+      }),
+      e('label', { className: 'ra-field' }, 'Only match on HTTP method (comma-separated, optional)'),
+      e('input', {
+        className: 'ra-input',
+        value: rule.methodCsv || '',
+        onChange: (ev) => setResponseRuleField(idx, 'methodCsv', ev.target.value),
+        placeholder: 'GET, POST',
+      }),
+      e('label', { className: 'ra-field' }, 'Only match on headers (one per line, optional)'),
+      e('textarea', {
+        className: 'ra-textarea',
+        value: rule.headersText || '',
+        onChange: (ev) => setResponseRuleField(idx, 'headersText', ev.target.value),
+        placeholder: 'x-api-mode: legacy',
+      }),
+      e('label', { className: 'ra-field' }, 'JSONata Expression'),
+      e('textarea', {
+        className: 'ra-textarea',
+        value: rule.expr || '',
+        onChange: (ev) => setResponseRuleField(idx, 'expr', ev.target.value),
+        placeholder: '{ "ok": false, "status": status, "error": body }',
+      }),
+      e('button', {
+        type: 'button',
+        className: 'ra-link-btn',
+        onClick: () => removeResponseRule(idx),
+      }, 'Remove rule')
+      ))
+      : e('div', { className: 'ra-dim' }, '(no rules)'),
+    e('div', { style: { marginTop: '8px' } },
+      e('button', {
+        type: 'button',
+        className: 'ra-btn',
+        onClick: addResponseRule,
+      }, 'Add rule')
+    ),
+    e('div', { className: 'ra-secret-actions' },
+      e('button', {
+        type: 'button',
+        className: 'ra-btn',
+        onClick: refreshTransformViews,
+        disabled: transformBusy,
+      }, 'Reload'),
+      e('button', {
+        type: 'button',
+        className: 'ra-btn primary',
+        onClick: saveResponseTransformView,
+        disabled: transformBusy,
+      }, transformBusy ? 'Saving...' : 'Save Response Transformations')
+    ),
+    transformMessage ? e('div', { className: 'ra-ok', style: { marginTop: '8px' } }, transformMessage) : null
   )
 );

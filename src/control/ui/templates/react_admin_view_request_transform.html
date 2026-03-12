@@ -1,17 +1,103 @@
 const requestTransformView = e('div', {},
   e('h1', { className: 'ra-title' }, 'Request Transformations'),
-  e('p', { className: 'ra-sub' }, 'Legacy-identical tab embedded from /admin.'),
-  e('div', { className: 'ra-card', style: { padding: 0, overflow: 'hidden' } },
-    e('iframe', {
-      title: 'Legacy Request Transformations',
-      src: '/admin?embed=1&embed_tab=inbound-transform',
-      style: {
-        width: '100%',
-        minHeight: '900px',
-        height: String(legacyEmbedHeights['inbound-transform'] || 1200) + 'px',
-        border: '0',
-        background: '#fff',
+  e('p', { className: 'ra-sub' }, 'Configure source request transform rules before proxying upstream.'),
+  e('div', { className: 'ra-card' },
+    e('label', { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
+      e('input', {
+        type: 'checkbox',
+        checked: requestTransformEnabled,
+        onChange: (ev) => setRequestTransformEnabled(!!ev.target.checked),
+      }),
+      e('span', null, 'Enable request transformations')
+    ),
+    e('label', { className: 'ra-field', htmlFor: 'ra-request-transform-preprocessor' }, 'Custom JS preprocessor (optional)'),
+    e('input', {
+      id: 'ra-request-transform-preprocessor',
+      className: 'ra-input',
+      value: requestTransformPreprocessor,
+      onChange: (ev) => setRequestTransformPreprocessor(ev.target.value),
+      placeholder: 'globalThis.preprocessSourceRequest',
+    }),
+    e('p', { style: { margin: '12px 0 6px', fontWeight: 700 } }, 'Header Filtering'),
+    e('label', { className: 'ra-field', htmlFor: 'ra-request-transform-header-mode' }, 'Filtering method'),
+    e('select', {
+      id: 'ra-request-transform-header-mode',
+      className: 'ra-select',
+      value: requestHeaderMode,
+      onChange: (ev) => setRequestHeaderMode(ev.target.value),
+    },
+      e('option', { value: 'blacklist' }, 'blacklist'),
+      e('option', { value: 'whitelist' }, 'whitelist')
+    ),
+    e('label', { className: 'ra-field', htmlFor: 'ra-request-transform-header-names' }, 'Header list (one per line)'),
+    e('textarea', {
+      id: 'ra-request-transform-header-names',
+      className: 'ra-textarea',
+      value: requestHeaderNamesText,
+      onChange: (ev) => setRequestHeaderNamesText(ev.target.value),
+      placeholder: 'authorization\ncookie',
+    }),
+    e('p', { style: { margin: '12px 0 6px', fontWeight: 700 } }, 'Transformation Rules'),
+    requestRuleDrafts.length
+      ? requestRuleDrafts.map((rule, idx) => e('div', {
+        key: 'req-rule-' + idx,
+        style: { border: '1px solid #e2e8f0', borderRadius: '10px', padding: '10px', marginTop: '10px' },
       },
-    })
+      e('label', { className: 'ra-field' }, 'Name'),
+      e('input', {
+        className: 'ra-input',
+        value: rule.name || '',
+        onChange: (ev) => setRequestRuleField(idx, 'name', ev.target.value),
+      }),
+      e('label', { className: 'ra-field' }, 'Only match on HTTP codes (comma-separated, optional)'),
+      e('input', {
+        className: 'ra-input',
+        value: rule.statusCsv || '',
+        onChange: (ev) => setRequestRuleField(idx, 'statusCsv', ev.target.value),
+        placeholder: '200, 4xx, 5xx',
+      }),
+      e('label', { className: 'ra-field' }, 'Only match on headers (one per line, optional)'),
+      e('textarea', {
+        className: 'ra-textarea',
+        value: rule.headersText || '',
+        onChange: (ev) => setRequestRuleField(idx, 'headersText', ev.target.value),
+        placeholder: 'x-api-mode: legacy',
+      }),
+      e('label', { className: 'ra-field' }, 'JSONata Expression'),
+      e('textarea', {
+        className: 'ra-textarea',
+        value: rule.expr || '',
+        onChange: (ev) => setRequestRuleField(idx, 'expr', ev.target.value),
+        placeholder: '{ "upstream": upstream }',
+      }),
+      e('button', {
+        type: 'button',
+        className: 'ra-link-btn',
+        onClick: () => removeRequestRule(idx),
+      }, 'Remove rule')
+      ))
+      : e('div', { className: 'ra-dim' }, '(no rules)'),
+    e('div', { style: { marginTop: '8px' } },
+      e('button', {
+        type: 'button',
+        className: 'ra-btn',
+        onClick: addRequestRule,
+      }, 'Add rule')
+    ),
+    e('div', { className: 'ra-secret-actions' },
+      e('button', {
+        type: 'button',
+        className: 'ra-btn',
+        onClick: refreshTransformViews,
+        disabled: transformBusy,
+      }, 'Reload'),
+      e('button', {
+        type: 'button',
+        className: 'ra-btn primary',
+        onClick: saveRequestTransformView,
+        disabled: transformBusy,
+      }, transformBusy ? 'Saving...' : 'Save Request Transformations')
+    ),
+    transformMessage ? e('div', { className: 'ra-ok', style: { marginTop: '8px' } }, transformMessage) : null
   )
 );

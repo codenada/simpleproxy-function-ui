@@ -1,17 +1,81 @@
 const networkControlsView = e('div', {},
   e('h1', { className: 'ra-title' }, 'Network Controls'),
-  e('p', { className: 'ra-sub' }, 'Legacy-identical tab embedded from /admin.'),
-  e('div', { className: 'ra-card', style: { padding: 0, overflow: 'hidden' } },
-    e('iframe', {
-      title: 'Legacy Network Controls',
-      src: '/admin?embed=1&embed_tab=inbound-traffic-controls',
-      style: {
-        width: '100%',
-        minHeight: '900px',
-        height: String(legacyEmbedHeights['inbound-traffic-controls'] || 1100) + 'px',
-        border: '0',
-        background: '#fff',
-      },
-    })
+  e('p', { className: 'ra-sub' }, 'Manage IP filtering and runtime request rate limiting.'),
+  e('div', { className: 'ra-card', style: { background: '#fffbeb', borderColor: '#fde68a', color: '#92400e' } },
+    'Warning: Prefer external network controls. Use in-app controls only when edge/network policy is unavailable.'
+  ),
+  e('div', { className: 'ra-card' },
+    e('label', { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
+      e('input', {
+        type: 'checkbox',
+        checked: networkControlsEnabled,
+        onChange: (ev) => setNetworkControlsEnabled(!!ev.target.checked),
+      }),
+      e('span', null, 'Enable network controls')
+    ),
+    e('hr', { className: 'ra-hr' }),
+    e('p', { style: { margin: '0 0 8px', fontWeight: 700 } }, 'Runtime Network Controls'),
+    e('label', { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
+      e('input', {
+        type: 'checkbox',
+        checked: networkIpFilterEnabled,
+        onChange: (ev) => setNetworkIpFilterEnabled(!!ev.target.checked),
+        disabled: !networkControlsEnabled,
+      }),
+      e('span', null, 'Enable IP filter')
+    ),
+    e('label', { className: 'ra-field', htmlFor: 'ra-network-allowed-cidrs' }, 'Allowed CIDRs (one per line)'),
+    e('textarea', {
+      id: 'ra-network-allowed-cidrs',
+      className: 'ra-textarea',
+      value: networkAllowedCidrsText,
+      onChange: (ev) => setNetworkAllowedCidrsText(ev.target.value),
+      placeholder: '0.0.0.0/0\n::/0',
+      disabled: !networkControlsEnabled,
+    }),
+    e('label', { style: { display: 'flex', gap: '8px', alignItems: 'center', marginTop: '8px' } },
+      e('input', {
+        type: 'checkbox',
+        checked: networkRpmEnabled,
+        onChange: (ev) => setNetworkRpmEnabled(!!ev.target.checked),
+        disabled: !networkControlsEnabled,
+      }),
+      e('span', null, 'Enable request rate limit')
+    ),
+    e('label', { className: 'ra-field', htmlFor: 'ra-network-rpm-limit' }, 'Rate limit (requests per minute)'),
+    e('input', {
+      id: 'ra-network-rpm-limit',
+      className: 'ra-input',
+      type: 'number',
+      min: '1',
+      step: '1',
+      value: networkRpmLimit,
+      onChange: (ev) => setNetworkRpmLimit(ev.target.value),
+      disabled: !networkControlsEnabled,
+    }),
+    e('div', { className: 'ra-secret-actions' },
+      e('button', {
+        type: 'button',
+        className: 'ra-btn',
+        onClick: refreshNetworkControlsView,
+        disabled: networkControlsBusy,
+      }, 'Reload'),
+      e('button', {
+        type: 'button',
+        className: 'ra-btn primary',
+        onClick: saveNetworkControlsView,
+        disabled: networkControlsBusy,
+      }, networkControlsBusy ? 'Saving...' : 'Save Network Controls')
+    ),
+    networkControlsMessage ? e('div', { className: 'ra-ok', style: { marginTop: '8px' } }, networkControlsMessage) : null
+  ),
+  e('div', { className: 'ra-card' },
+    e('p', { style: { margin: '0 0 8px', fontWeight: 700 } }, 'Admin Network Controls (Read Only)'),
+    e('div', null, e('b', null, 'Login Page Rate Limit:'), ' ', adminLoginEnabledText),
+    e('div', null, e('b', null, 'Login Page Requests Per Min:'), ' ', adminLoginRpmText),
+    e('div', null, e('b', null, 'Admin Token Endpoint Rate Limit:'), ' ', adminTokenEnabledText),
+    e('div', null, e('b', null, 'Admin Token Requests Per Min:'), ' ', adminTokenRpmText),
+    e('div', null, e('b', null, 'Admin IP Filter:'), ' ', adminIpEnabledText),
+    e('div', null, e('b', null, 'Admin Allowed CIDRs:'), ' ', adminIpCidrsText)
   )
 );
