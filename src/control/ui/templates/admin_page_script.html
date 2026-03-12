@@ -21,6 +21,7 @@
         let lastApiErrorSignature = '';
         let lastApiErrorAtMs = 0;
         let configYamlEditingUnlocked = false;
+        let keyRotateConfirmResolve = null;
         const LIVE_LOG_MAX_CHARS = 200000;
         const LOGGING_TTL_PRESET_SECONDS = Object.freeze({
           "1h": 3600,
@@ -2905,8 +2906,10 @@
              setOutput('keys-output', String(e.message || e));
            }
          }
-         async function rotateProxy() {
+        async function rotateProxy() {
            try {
+             const confirmed = await showKeyRotateConfirmModal('proxy');
+             if (!confirmed) return;
              setOutput('keys-output', await apiCall(ADMIN_ROOT + '/keys/proxy/rotate', 'POST'));
              await keysRefresh();
            }
@@ -2914,11 +2917,33 @@
          }
          async function rotateIssuer() {
            try {
+             const confirmed = await showKeyRotateConfirmModal('issuer');
+             if (!confirmed) return;
              setOutput('issuer-keys-output', await apiCall(ADMIN_ROOT + '/keys/issuer/rotate', 'POST'));
              await keysRefresh();
            }
            catch (e) { setOutput('issuer-keys-output', String(e.message || e)); }
          }
+        function showKeyRotateConfirmModal(kind) {
+          const target = String(kind || '').toLowerCase() === 'issuer' ? 'issuer' : 'proxy';
+          const title = target === 'issuer' ? 'Rotate issuer key?' : 'Rotate proxy key?';
+          const text = target === 'issuer'
+            ? 'Are you sure you want to rotate the issuer key?'
+            : 'Are you sure you want to rotate the proxy key?';
+          const modal = el('key-rotate-confirm-modal');
+          const titleNode = el('key-rotate-confirm-title');
+          const textNode = el('key-rotate-confirm-text');
+          if (titleNode) titleNode.innerHTML = '<b>' + htmlEscape(title) + '</b>';
+          if (textNode) textNode.textContent = text;
+          return new Promise((resolve) => {
+            if (!modal || typeof modal.showModal !== 'function') {
+              resolve(window.confirm(text));
+              return;
+            }
+            keyRotateConfirmResolve = resolve;
+            if (!modal.open) modal.showModal();
+          });
+        }
         async function rotateAdmin() {
           try {
             const confirmed = await showAdminRotateConfirmModal();
@@ -3080,6 +3105,31 @@
           el('admin-rotate-confirm-cancel-btn')?.addEventListener('click', () => {
             const modal = el('admin-rotate-confirm-modal');
             if (modal?.open) modal.close();
+          });
+          el('key-rotate-confirm-cancel-btn')?.addEventListener('click', () => {
+            const modal = el('key-rotate-confirm-modal');
+            if (modal?.open) modal.close();
+            if (typeof keyRotateConfirmResolve === 'function') {
+              keyRotateConfirmResolve(false);
+              keyRotateConfirmResolve = null;
+            }
+          });
+          el('key-rotate-confirm-rotate-btn')?.addEventListener('click', () => {
+            const modal = el('key-rotate-confirm-modal');
+            if (modal?.open) modal.close();
+            if (typeof keyRotateConfirmResolve === 'function') {
+              keyRotateConfirmResolve(true);
+              keyRotateConfirmResolve = null;
+            }
+          });
+          el('key-rotate-confirm-modal')?.addEventListener('cancel', (evt) => {
+            evt.preventDefault();
+            const modal = el('key-rotate-confirm-modal');
+            if (modal?.open) modal.close();
+            if (typeof keyRotateConfirmResolve === 'function') {
+              keyRotateConfirmResolve(false);
+              keyRotateConfirmResolve = null;
+            }
           });
           el('admin-rotate-result-close-btn')?.addEventListener('click', () => {
             closeAdminRotateResultModal();

@@ -421,15 +421,23 @@
            <button type="button" id="network-controls-warning-cancel-btn">Cancel</button>
          </div>
        </dialog>
-       <dialog id="admin-rotate-confirm-modal" style="max-width:620px;border:1px solid #e2e8f0;border-radius:10px;padding:16px;">
-         <p style="margin-top:0;"><b>Rotate admin key?</b></p>
-         <p style="margin:8px 0 12px 0;">Are you sure? Existing admin key will be revoked immediately. New admin key will be shown one time only and must be kept elsewhere.</p>
-         <div style="display:flex;gap:8px;justify-content:flex-end;">
-           <button type="button" id="admin-rotate-confirm-cancel-btn">Cancel</button>
-           <button type="button" id="admin-rotate-confirm-continue-btn" style="background:#2563eb;color:#fff;border:1px solid #2563eb;padding:8px 12px;border-radius:8px;">Continue</button>
-         </div>
-       </dialog>
-       <dialog id="admin-rotate-result-modal" style="max-width:700px;width:92vw;border:1px solid #e2e8f0;border-radius:10px;padding:16px;">
+      <dialog id="admin-rotate-confirm-modal" style="max-width:620px;border:1px solid #e2e8f0;border-radius:10px;padding:16px;">
+        <p style="margin-top:0;"><b>Rotate admin key?</b></p>
+        <p style="margin:8px 0 12px 0;">Are you sure? Existing admin key will be revoked immediately. New admin key will be shown one time only and must be kept elsewhere.</p>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button type="button" id="admin-rotate-confirm-cancel-btn">Cancel</button>
+          <button type="button" id="admin-rotate-confirm-continue-btn" style="background:#2563eb;color:#fff;border:1px solid #2563eb;padding:8px 12px;border-radius:8px;">Continue</button>
+        </div>
+      </dialog>
+      <dialog id="key-rotate-confirm-modal" style="max-width:620px;border:1px solid #e2e8f0;border-radius:10px;padding:16px;">
+        <p id="key-rotate-confirm-title" style="margin-top:0;"><b>Rotate key?</b></p>
+        <p id="key-rotate-confirm-text" style="margin:8px 0 12px 0;">Are you sure you want to rotate this key?</p>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button type="button" id="key-rotate-confirm-cancel-btn">Cancel</button>
+          <button type="button" id="key-rotate-confirm-rotate-btn" style="background:#2563eb;color:#fff;border:1px solid #2563eb;padding:8px 12px;border-radius:8px;">Rotate</button>
+        </div>
+      </dialog>
+      <dialog id="admin-rotate-result-modal" style="max-width:700px;width:92vw;border:1px solid #e2e8f0;border-radius:10px;padding:16px;">
          <p style="margin-top:0;"><b>New admin key issued</b></p>
          <p id="admin-rotate-result-status" style="margin:8px 0 10px 0;">Click Rotate now to generate a new admin key.</p>
          <div style="display:flex;gap:8px;justify-content:flex-end;margin:0 0 10px 0;">
