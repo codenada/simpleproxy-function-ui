@@ -4,7 +4,7 @@ async function initAdminLogin() {
   const msg = document.getElementById('init-admin-login-msg');
   const key = (input && input.value || '').trim();
   if (!key) {
-    if (msg) msg.textContent = 'Enter your Admin API key first.';
+    if (msg) msg.textContent = 'Enter your admin key to continue.';
     return;
   }
   try {

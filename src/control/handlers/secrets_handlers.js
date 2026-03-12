@@ -1,4 +1,9 @@
-import { isValidHttpSecretRef } from "../../common/auth_profile_keys.js";
+import {
+  HTTP_SECRET_MAX_LENGTH,
+  HTTP_SECRET_REFS,
+  isValidHttpSecretRef,
+  isValidHttpSecretValue,
+} from "../../common/auth_profile_keys.js";
 
 function createControlSecretsHandlers(deps) {
   const {
@@ -45,17 +50,20 @@ function createControlSecretsHandlers(deps) {
   async function handleHttpAuthSecretPut(profile, request, env) {
     enforceInvokeContentType(request);
     const body = await readJsonWithLimit(request, getEnvInt(env, "MAX_REQ_BYTES", defaults.MAX_REQ_BYTES));
-    const value = String(body?.value || "").trim();
-    if (!value) {
+    const value = body?.value;
+    if (!isValidHttpSecretValue(value)) {
       throw new HttpError(400, "INVALID_REQUEST", "value is required", {
-        expected: { value: "secret-string" },
+        expected: {
+          value: `non-empty string (max ${HTTP_SECRET_MAX_LENGTH} chars, no control chars)`,
+        },
       });
     }
+    const secretValue = String(value);
     const key = authProfileKvKey(profile, "current");
     const issuedKey = authProfileKvKey(profile, "issued_at_ms");
     if (key) {
       await Promise.all([
-        secretStore(env).put(key, value),
+        secretStore(env).put(key, secretValue),
         issuedKey ? secretStore(env).put(issuedKey, String(nowMs())) : Promise.resolve(),
       ]);
     }
@@ -104,7 +112,6 @@ function createControlSecretsHandlers(deps) {
     const rest = pathname.slice(base.length);
     if (!rest || rest.includes("/")) return null;
     const ref = decodeURIComponent(rest || "").trim();
-    if (!isValidHttpSecretRef(ref)) return null;
     return ref;
   }
 
@@ -112,6 +119,11 @@ function createControlSecretsHandlers(deps) {
     const ref = parseHttpSecretPath(pathname);
     if (!ref) {
       throw new HttpError(404, "NOT_FOUND", "Route not found");
+    }
+    if (!isValidHttpSecretRef(ref)) {
+      throw new HttpError(400, "INVALID_REQUEST", "Invalid secret reference", {
+        allowed_secret_refs: HTTP_SECRET_REFS,
+      });
     }
     if (request.method === "PUT") return await handleHttpSecretPut(ref, request, env);
     if (request.method === "GET") return await handleHttpSecretGet(ref, env);
@@ -122,17 +134,21 @@ function createControlSecretsHandlers(deps) {
   async function handleHttpSecretPut(ref, request, env) {
     enforceInvokeContentType(request);
     const body = await readJsonWithLimit(request, getEnvInt(env, "MAX_REQ_BYTES", defaults.MAX_REQ_BYTES));
-    const value = String(body?.value || "").trim();
-    if (!value) {
+    const value = body?.value;
+    if (!isValidHttpSecretValue(value)) {
       throw new HttpError(400, "INVALID_REQUEST", "value is required", {
-        expected: { value: "secret-string" },
+        expected: {
+          value: `non-empty string (max ${HTTP_SECRET_MAX_LENGTH} chars, no control chars)`,
+        },
       });
     }
     const key = httpSecretKvKey(ref);
     if (!key) {
-      throw new HttpError(400, "INVALID_REQUEST", "Invalid secret reference");
+      throw new HttpError(400, "INVALID_REQUEST", "Invalid secret reference", {
+        allowed_secret_refs: HTTP_SECRET_REFS,
+      });
     }
-    await secretStore(env).put(key, value);
+    await secretStore(env).put(key, String(value));
     return jsonResponse(200, {
       ok: true,
       data: {

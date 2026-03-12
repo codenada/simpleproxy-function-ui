@@ -567,7 +567,7 @@ function normalizeHttpAuthorizationConfig(input, path, problems) {
     const secretRefRaw = staticIn.secret_ref === undefined || staticIn.secret_ref === null ? null : String(staticIn.secret_ref || "").trim();
     const secret_ref = secretRefRaw || null;
     if (secret_ref && !isValidHttpSecretRef(secret_ref)) {
-      pushProblem(problems, `${path}.static.secret_ref`, "must match [a-zA-Z0-9_.-] and be <= 64 chars");
+      pushProblem(problems, `${path}.static.secret_ref`, "must be one of: secret_1, secret_2");
     }
     return { type: "static", headers, secret_ref };
   }

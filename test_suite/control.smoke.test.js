@@ -26,7 +26,7 @@ test("GET / initializes missing keys and serves onboarding HTML", SERIAL, async 
   assert.match(response.headers.get("content-type") || "", /text\/html/i);
   const html = await response.text();
   assert.match(html, /SimpleProxy/i);
-  assert.match(html, /Login with your Admin Key/i);
+  assert.match(html, /Open Admin Console/i);
   assert.ok(await env.CONFIG.get("proxy_key"));
   assert.ok(await env.CONFIG.get("admin_key"));
 });

@@ -2,9 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  HTTP_SECRET_MAX_LENGTH,
+  HTTP_SECRET_REFS,
   authProfilePrefix,
   authProfileKvKey,
   isValidHttpSecretRef,
+  isValidHttpSecretValue,
   httpSecretKvKey,
   createAuthProfileKeyResolvers,
 } from "../../src/common/auth_profile_keys.js";
@@ -26,16 +29,25 @@ test("authProfileKvKey builds field keys only for supported profiles", () => {
   assert.equal(authProfileKvKey("unknown", "current", PREFIX_MAP), null);
 });
 
-test("isValidHttpSecretRef accepts expected charset and length", () => {
-  assert.equal(isValidHttpSecretRef("abc-DEF_123.test"), true);
+test("isValidHttpSecretRef accepts only fixed secret refs", () => {
+  assert.equal(isValidHttpSecretRef("secret_1"), true);
+  assert.equal(isValidHttpSecretRef("secret_2"), true);
   assert.equal(isValidHttpSecretRef(""), false);
+  assert.equal(isValidHttpSecretRef("secret_3"), false);
   assert.equal(isValidHttpSecretRef("bad value"), false);
-  assert.equal(isValidHttpSecretRef("x".repeat(65)), false);
 });
 
 test("httpSecretKvKey rejects invalid refs and applies prefix", () => {
-  assert.equal(httpSecretKvKey("token_1", "http_secret:"), "http_secret:token_1");
+  assert.equal(httpSecretKvKey("secret_1", "http_secret:"), "http_secret:secret_1");
   assert.equal(httpSecretKvKey("bad value", "http_secret:"), null);
+});
+
+test("isValidHttpSecretValue enforces non-empty safe strings", () => {
+  assert.equal(isValidHttpSecretValue("abc123"), true);
+  assert.equal(isValidHttpSecretValue(""), false);
+  assert.equal(isValidHttpSecretValue("   "), false);
+  assert.equal(isValidHttpSecretValue("line1\nline2"), false);
+  assert.equal(isValidHttpSecretValue("x".repeat(HTTP_SECRET_MAX_LENGTH + 1)), false);
 });
 
 test("createAuthProfileKeyResolvers returns bound helpers", () => {
@@ -45,5 +57,5 @@ test("createAuthProfileKeyResolvers returns bound helpers", () => {
   });
   assert.equal(resolvers.authProfilePrefix("jwt_inbound"), "auth/jwt_inbound");
   assert.equal(resolvers.authProfileKvKey("target", "expires_at_ms"), "auth/target/expires_at_ms");
-  assert.equal(resolvers.httpSecretKvKey("secret_ref"), "http_secret:secret_ref");
+  assert.equal(resolvers.httpSecretKvKey(HTTP_SECRET_REFS[0]), "http_secret:secret_1");
 });

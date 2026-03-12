@@ -63,7 +63,7 @@ test("validateAndNormalizeConfigV1 rejects invalid static secret_ref", () => {
               type: "static",
               static: {
                 headers: {},
-                secret_ref: "bad value",
+                secret_ref: "secret_3",
               },
             },
           },

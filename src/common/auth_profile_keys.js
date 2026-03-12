@@ -1,3 +1,7 @@
+const HTTP_SECRET_REFS = Object.freeze(["secret_1", "secret_2"]);
+const HTTP_SECRET_REF_SET = new Set(HTTP_SECRET_REFS);
+const HTTP_SECRET_MAX_LENGTH = 4096;
+
 function authProfilePrefix(name, prefixMap) {
   const key = String(name || "").trim();
   return prefixMap?.[key] || null;
@@ -10,7 +14,16 @@ function authProfileKvKey(profile, field, prefixMap) {
 }
 
 function isValidHttpSecretRef(ref) {
-  return /^[a-zA-Z0-9_.-]{1,64}$/.test(String(ref || ""));
+  return HTTP_SECRET_REF_SET.has(String(ref || "").trim());
+}
+
+function isValidHttpSecretValue(value) {
+  if (typeof value !== "string") return false;
+  const trimmed = value.trim();
+  if (!trimmed) return false;
+  if (value.length > HTTP_SECRET_MAX_LENGTH) return false;
+  // Reject control chars to prevent header/body injection vectors.
+  return !/[\u0000-\u001f\u007f]/.test(value);
 }
 
 function httpSecretKvKey(ref, prefix = "http_secret/") {
@@ -31,6 +44,9 @@ export {
   authProfilePrefix,
   authProfileKvKey,
   isValidHttpSecretRef,
+  isValidHttpSecretValue,
   httpSecretKvKey,
+  HTTP_SECRET_REFS,
+  HTTP_SECRET_MAX_LENGTH,
   createAuthProfileKeyResolvers,
 };

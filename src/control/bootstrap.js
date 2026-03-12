@@ -271,7 +271,6 @@ function createBootstrapApi({
       htmlPage(
         "API Transform Proxy",
         `${renderOnboardingHeader(proxyName)}
-       <h2 style="margin:0 0 10px 0;">Step 2 - View/Configure This Proxy</h2>
        ${renderAdminLoginOptions(docsUrl)}
        ${renderInitAdminLoginScript(adminRoot)}`
       ),
@@ -313,7 +312,7 @@ function createBootstrapApi({
          "API Key (New). Copy to a safe place. This key cannot be viewed more than once.",
          true
        )}
-       <h2 style="margin:16px 0 10px 0;">Step 2 - View/Configure This Proxy</h2>
+       <h2 style="margin:16px 0 10px 0;">Open Admin Console</h2>
        ${renderAdminLoginOptions(docsUrl)}
        ${renderSecretFieldScript()}
        ${renderInitAdminLoginScript(adminRoot)}`
