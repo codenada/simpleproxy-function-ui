@@ -85,6 +85,14 @@ async function dispatchAdminRoute({ normalizedPath, request, env, adminRoot, han
     await auth.requireAdminAuth(request, env);
     return handlers.handleKeyRotationConfigPut(request, env);
   }
+  if (normalizedPath === `${adminRoot}${CONTROL_ADMIN_PATHS.JWT_CONFIG}` && request.method === "GET") {
+    await auth.requireAdminAuth(request, env);
+    return handlers.handleJwtConfigGet(env);
+  }
+  if (normalizedPath === `${adminRoot}${CONTROL_ADMIN_PATHS.JWT_CONFIG}` && request.method === "PUT") {
+    await auth.requireAdminAuth(request, env);
+    return handlers.handleJwtConfigPut(request, env);
+  }
   if (normalizedPath === `${adminRoot}${CONTROL_ADMIN_PATHS.TRANSFORM_CONFIG}` && request.method === "GET") {
     await auth.requireAdminAuth(request, env);
     return handlers.handleTransformConfigGet(env);
@@ -100,6 +108,14 @@ async function dispatchAdminRoute({ normalizedPath, request, env, adminRoot, han
   if (normalizedPath === `${adminRoot}${CONTROL_ADMIN_PATHS.NETWORK_CONTROLS}` && request.method === "PUT") {
     await auth.requireAdminAuth(request, env);
     return handlers.handleNetworkControlsPut(request, env);
+  }
+  if (normalizedPath === `${adminRoot}${CONTROL_ADMIN_PATHS.LOGGING_CONFIG}` && request.method === "GET") {
+    await auth.requireAdminAuth(request, env);
+    return handlers.handleLoggingConfigGet(env);
+  }
+  if (normalizedPath === `${adminRoot}${CONTROL_ADMIN_PATHS.LOGGING_CONFIG}` && request.method === "PUT") {
+    await auth.requireAdminAuth(request, env);
+    return handlers.handleLoggingConfigPut(request, env);
   }
 
   if (normalizedPath === `${adminRoot}${CONTROL_ADMIN_PATHS.DEBUG}` && request.method === "GET") {

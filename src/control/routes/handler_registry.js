@@ -29,10 +29,14 @@ function applyConfigHandlers(handlers, deps) {
   handlers.handleConfigTestRule = deps.handleConfigTestRule;
   handlers.handleKeyRotationConfigGet = deps.handleKeyRotationConfigGet;
   handlers.handleKeyRotationConfigPut = deps.handleKeyRotationConfigPut;
+  handlers.handleJwtConfigGet = deps.handleJwtConfigGet;
+  handlers.handleJwtConfigPut = deps.handleJwtConfigPut;
   handlers.handleTransformConfigGet = deps.handleTransformConfigGet;
   handlers.handleTransformConfigPut = deps.handleTransformConfigPut;
   handlers.handleNetworkControlsGet = deps.handleNetworkControlsGet;
   handlers.handleNetworkControlsPut = deps.handleNetworkControlsPut;
+  handlers.handleLoggingConfigGet = deps.handleLoggingConfigGet;
+  handlers.handleLoggingConfigPut = deps.handleLoggingConfigPut;
 }
 
 function applyDebugHandlers(handlers, deps) {

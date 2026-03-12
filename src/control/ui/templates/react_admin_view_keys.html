@@ -1,4 +1,217 @@
 const keysView = e('div', {},
   e('h1', { className: 'ra-title' }, 'API Keys'),
-  e('p', { className: 'ra-sub' }, 'Migration pending.')
+  e('p', { className: 'ra-sub' }, 'Manage key lifecycles and inbound JWT settings.'),
+  e('div', { className: 'ra-card' },
+    e('p', { style: { margin: '0 0 6px 0', fontWeight: 700 } }, 'Proxy Key'),
+    e('label', { className: 'ra-field', htmlFor: 'ra-proxy-expiry' }, 'Expiration'),
+    e('select', {
+      id: 'ra-proxy-expiry',
+      className: 'ra-select',
+      value: proxyExpirySeconds,
+      onChange: (ev) => setProxyExpirySeconds(ev.target.value),
+    },
+      e('option', { value: '' }, 'Never expires'),
+      e('option', { value: '3600' }, '1 hour'),
+      e('option', { value: '86400' }, '24 hours'),
+      e('option', { value: '604800' }, '7 days'),
+      e('option', { value: '2592000' }, '30 days'),
+      e('option', { value: '31622400' }, '366 days')
+    ),
+    e('label', { className: 'ra-field' }, 'Proxy Key Status'),
+    e('pre', { className: 'ra-pre' }, proxyKeyStatusText),
+    e('div', { className: 'ra-secret-actions' },
+      e('button', {
+        type: 'button',
+        className: 'ra-btn',
+        onClick: refreshKeysView,
+        disabled: keysBusy,
+      }, 'Check latest status'),
+      e('button', {
+        type: 'button',
+        className: 'ra-btn',
+        onClick: () => rotateKeyByKind('proxy'),
+        disabled: keysBusy,
+      }, 'Rotate proxy key')
+    )
+  ),
+  e('div', { className: 'ra-card' },
+    e('p', { style: { margin: '0 0 6px 0', fontWeight: 700 } }, 'JWT (Optional)'),
+    e('div', { className: 'ra-dim', style: { marginBottom: '8px' } },
+      'JWT Endpoint URL: ', window.location.origin + '/_apiproxy/jwt'
+    ),
+    e('p', { style: { margin: '12px 0 6px', fontWeight: 700 } }, 'Validate 3rd-Party JWTs from this proxy'),
+    e('label', { className: 'ra-field', htmlFor: 'ra-jwt-inbound-mode' }, 'Verification mode'),
+    e('select', {
+      id: 'ra-jwt-inbound-mode',
+      className: 'ra-select',
+      value: jwtInboundMode,
+      onChange: (ev) => setJwtInboundMode(ev.target.value),
+    },
+      e('option', { value: 'none' }, 'none'),
+      e('option', { value: 'shared_secret' }, 'shared_secret'),
+      e('option', { value: 'jwks' }, 'jwks')
+    ),
+    jwtInboundMode !== 'none' ? e('div', {},
+      e('label', { className: 'ra-field', htmlFor: 'ra-jwt-inbound-header' }, 'JWT header name'),
+      e('input', {
+        id: 'ra-jwt-inbound-header',
+        className: 'ra-input',
+        value: jwtInboundHeader,
+        onChange: (ev) => setJwtInboundHeader(ev.target.value),
+      }),
+      e('label', { className: 'ra-field', htmlFor: 'ra-jwt-inbound-scheme' }, 'JWT scheme (optional)'),
+      e('input', {
+        id: 'ra-jwt-inbound-scheme',
+        className: 'ra-input',
+        value: jwtInboundScheme,
+        onChange: (ev) => setJwtInboundScheme(ev.target.value),
+      }),
+      e('label', { className: 'ra-field', htmlFor: 'ra-jwt-inbound-issuer' }, 'Issuer (optional)'),
+      e('input', {
+        id: 'ra-jwt-inbound-issuer',
+        className: 'ra-input',
+        value: jwtInboundIssuer,
+        onChange: (ev) => setJwtInboundIssuer(ev.target.value),
+      }),
+      e('label', { className: 'ra-field', htmlFor: 'ra-jwt-inbound-audience' }, 'Audience (optional)'),
+      e('input', {
+        id: 'ra-jwt-inbound-audience',
+        className: 'ra-input',
+        value: jwtInboundAudience,
+        onChange: (ev) => setJwtInboundAudience(ev.target.value),
+      }),
+      jwtInboundMode === 'jwks' ? e('div', {},
+        e('label', { style: { display: 'flex', gap: '8px', alignItems: 'center', marginTop: '10px' } },
+          e('input', {
+            type: 'checkbox',
+            checked: jwtInboundJwksEnabled,
+            onChange: (ev) => setJwtInboundJwksEnabled(!!ev.target.checked),
+          }),
+          e('span', null, 'Enable external token validation request')
+        ),
+        jwtInboundJwksEnabled
+          ? renderRequestTemplateForm({
+            idPrefix: 'ra-jwt-jwks-req',
+            draft: jwtInboundJwksRequestDraft,
+            setDraft: setJwtInboundJwksRequestDraft,
+            enableAuth: true,
+            fixedAdvancedProfile: 'jwt_inbound',
+          })
+          : null
+      ) : null,
+      e('label', { className: 'ra-field', htmlFor: 'ra-jwt-inbound-skew' }, 'Clock skew seconds'),
+      e('input', {
+        id: 'ra-jwt-inbound-skew',
+        className: 'ra-input',
+        value: jwtInboundClockSkew,
+        onChange: (ev) => setJwtInboundClockSkew(ev.target.value),
+      }),
+      e('label', { className: 'ra-field', htmlFor: 'ra-jwt-inbound-ts' }, 'Timestamp format'),
+      e('select', {
+        id: 'ra-jwt-inbound-ts',
+        className: 'ra-select',
+        value: jwtInboundTsFormat,
+        onChange: (ev) => setJwtInboundTsFormat(ev.target.value),
+      },
+        e('option', { value: 'epoch_ms' }, 'epoch_ms'),
+        e('option', { value: 'epoch_seconds' }, 'epoch_seconds'),
+        e('option', { value: 'iso_8601' }, 'iso_8601')
+      )
+    ) : null,
+    e('p', { style: { margin: '14px 0 6px', fontWeight: 700 } }, 'Issue JWTs from this proxy'),
+    e('label', { className: 'ra-field', htmlFor: 'ra-jwt-outbound-mode' }, 'JWT mode'),
+    e('select', {
+      id: 'ra-jwt-outbound-mode',
+      className: 'ra-select',
+      value: jwtOutboundMode,
+      onChange: (ev) => setJwtOutboundMode(ev.target.value),
+    },
+      e('option', { value: 'none' }, 'none'),
+      e('option', { value: 'shared_secret' }, 'shared_secret')
+    ),
+    jwtOutboundMode !== 'none' ? e('div', {},
+      e('label', { className: 'ra-field', htmlFor: 'ra-jwt-outbound-header' }, 'JWT header name'),
+      e('input', {
+        id: 'ra-jwt-outbound-header',
+        className: 'ra-input',
+        value: jwtOutboundHeader,
+        onChange: (ev) => setJwtOutboundHeader(ev.target.value),
+      }),
+      e('label', { className: 'ra-field', htmlFor: 'ra-jwt-outbound-scheme' }, 'JWT scheme (optional)'),
+      e('input', {
+        id: 'ra-jwt-outbound-scheme',
+        className: 'ra-input',
+        value: jwtOutboundScheme,
+        onChange: (ev) => setJwtOutboundScheme(ev.target.value),
+      }),
+      e('label', { className: 'ra-field', htmlFor: 'ra-jwt-outbound-issuer' }, 'Issuer (optional)'),
+      e('input', {
+        id: 'ra-jwt-outbound-issuer',
+        className: 'ra-input',
+        value: jwtOutboundIssuer,
+        onChange: (ev) => setJwtOutboundIssuer(ev.target.value),
+      }),
+      e('label', { className: 'ra-field', htmlFor: 'ra-jwt-outbound-audience' }, 'Audience (optional)'),
+      e('input', {
+        id: 'ra-jwt-outbound-audience',
+        className: 'ra-input',
+        value: jwtOutboundAudience,
+        onChange: (ev) => setJwtOutboundAudience(ev.target.value),
+      }),
+      e('label', { className: 'ra-field', htmlFor: 'ra-jwt-outbound-subject' }, 'Subject (optional)'),
+      e('input', {
+        id: 'ra-jwt-outbound-subject',
+        className: 'ra-input',
+        value: jwtOutboundSubject,
+        onChange: (ev) => setJwtOutboundSubject(ev.target.value),
+      }),
+      e('label', { className: 'ra-field', htmlFor: 'ra-jwt-outbound-ttl' }, 'Token TTL seconds'),
+      e('input', {
+        id: 'ra-jwt-outbound-ttl',
+        className: 'ra-input',
+        value: jwtOutboundTtl,
+        onChange: (ev) => setJwtOutboundTtl(ev.target.value),
+      })
+    ) : null,
+    e('label', { className: 'ra-field', htmlFor: 'ra-issuer-expiry' }, 'Issuer key expiration (seconds)'),
+    e('input', {
+      id: 'ra-issuer-expiry',
+      className: 'ra-input',
+      value: issuerExpirySeconds,
+      onChange: (ev) => setIssuerExpirySeconds(ev.target.value),
+      placeholder: 'n/a',
+    })
+  ),
+  e('div', { className: 'ra-card' },
+    e('p', { style: { margin: '0 0 8px 0', fontWeight: 700 } }, 'Issuer Key Status'),
+    e('pre', { className: 'ra-pre' }, issuerKeyStatusText),
+    e('div', { className: 'ra-secret-actions' },
+      e('button', {
+        type: 'button',
+        className: 'ra-btn',
+        onClick: () => rotateKeyByKind('issuer'),
+        disabled: keysBusy,
+      }, 'Rotate issuer key')
+    ),
+    e('hr', { className: 'ra-hr' }),
+    e('p', { style: { margin: '0 0 8px 0', fontWeight: 700 } }, 'Admin Key Status'),
+    e('pre', { className: 'ra-pre' }, adminKeyStatusText),
+    e('div', { className: 'ra-secret-actions' },
+      e('button', {
+        type: 'button',
+        className: 'ra-btn',
+        onClick: () => rotateKeyByKind('admin'),
+        disabled: keysBusy,
+      }, 'Rotate admin key')
+    )
+  ),
+  e('div', { className: 'ra-card' },
+    e('button', {
+      type: 'button',
+      className: 'ra-btn primary',
+      onClick: saveKeysView,
+      disabled: keysBusy,
+    }, keysBusy ? 'Saving...' : 'Save'),
+    keysMessage ? e('div', { className: 'ra-ok', style: { marginTop: '8px' } }, keysMessage) : null
+  )
 );

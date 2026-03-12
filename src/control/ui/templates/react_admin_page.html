@@ -234,6 +234,95 @@
     });
   }
 
+  function requestTemplateBodyToText(bodyType, body) {
+    const type = String(bodyType || 'none').toLowerCase();
+    if (type === 'none') return '';
+    if (type === 'json') {
+      try { return JSON.stringify(body ?? {}, null, 2); } catch { return '{}'; }
+    }
+    if (type === 'urlencoded' && body && typeof body === 'object') {
+      try { return new URLSearchParams(body).toString(); } catch { return ''; }
+    }
+    return String(body == null ? '' : body);
+  }
+
+  function parseRequestTemplateBody(text) {
+    const raw = String(text || '').trim();
+    if (!raw) return { body_type: 'none', body: {} };
+    try {
+      return { body_type: 'json', body: JSON.parse(raw) };
+    } catch {
+      return { body_type: 'raw', body: raw };
+    }
+  }
+
+  function requestTemplateToDraft(requestValue, fallbackMethod = 'POST') {
+    const req = requestValue && typeof requestValue === 'object' ? requestValue : {};
+    const authorization = req.authorization && typeof req.authorization === 'object' ? req.authorization : {};
+    let authType = 'none';
+    let authHeaderName = 'Authorization';
+    let authSecretRef = '';
+    if (authorization.type === 'static') {
+      authType = 'static';
+      const staticHeaders = authorization?.static?.headers && typeof authorization.static.headers === 'object'
+        ? authorization.static.headers
+        : {};
+      const first = Object.entries(staticHeaders)[0] || [];
+      authHeaderName = String(first[0] || 'Authorization');
+      authSecretRef = String(authorization?.static?.secret_ref || '');
+    } else if (authorization.type === 'key_rotation') {
+      authType = 'advanced';
+    }
+    const bodyType = String(req.body_type || 'none').toLowerCase();
+    return {
+      method: String(req.method || fallbackMethod || 'POST').toUpperCase(),
+      url: String(req.url || ''),
+      headersText: headersObjToText(req.headers || {}),
+      bodyText: requestTemplateBodyToText(bodyType, req.body),
+      authType,
+      authHeaderName,
+      authSecretRef,
+    };
+  }
+
+  function requestTemplateDraftToPayload(draft, fixedAdvancedProfile) {
+    const method = String(draft?.method || 'POST').toUpperCase();
+    const url = String(draft?.url || '').trim();
+    const bodyParsed = parseRequestTemplateBody(draft?.bodyText || '');
+    const out = {
+      method,
+      url,
+      headers: headersTextToObj(draft?.headersText || ''),
+      body_type: bodyParsed.body_type,
+      body: bodyParsed.body,
+    };
+    const authType = String(draft?.authType || 'none');
+    if (authType === 'static') {
+      const headerName = String(draft?.authHeaderName || 'Authorization').trim() || 'Authorization';
+      const secretRef = String(draft?.authSecretRef || '').trim();
+      if (secretRef) {
+        out.authorization = {
+          type: 'static',
+          static: {
+            headers: { [headerName]: '${' + secretRef + '}' },
+            secret_ref: secretRef,
+          },
+        };
+      }
+    } else if (authType === 'advanced') {
+      out.authorization = {
+        type: 'key_rotation',
+        key_rotation: { profile: String(fixedAdvancedProfile || '').trim() || null },
+      };
+    }
+    return out;
+  }
+
+  function formatTimestamp(ts) {
+    if (!ts) return 'n/a';
+    try { return new Date(ts).toLocaleString(); } catch { return String(ts); }
+  }
+
   function readBody(type, text) {
     if (type === 'none') return { type: 'none' };
     if (type === 'raw') return { type: 'raw', raw: String(text || '') };
@@ -338,6 +427,39 @@
     const [loggingTtlCustomHours, setLoggingTtlCustomHours] = React.useState('12');
     const [loggingLastOutput, setLoggingLastOutput] = React.useState('');
     const [loggingMessage, setLoggingMessage] = React.useState('');
+    const [loggingExternalBusy, setLoggingExternalBusy] = React.useState(false);
+    const [loggingExternalEnabled, setLoggingExternalEnabled] = React.useState(false);
+    const [loggingExternalRequestDraft, setLoggingExternalRequestDraft] = React.useState(requestTemplateToDraft({}, 'POST'));
+    const [loggingExternalTsFormat, setLoggingExternalTsFormat] = React.useState('epoch_ms');
+    const [loggingExternalSecretSet, setLoggingExternalSecretSet] = React.useState(false);
+    const [loggingExternalSecretValue, setLoggingExternalSecretValue] = React.useState('');
+    const [loggingExternalMessage, setLoggingExternalMessage] = React.useState('');
+    const [configEditUnlocked, setConfigEditUnlocked] = React.useState(false);
+    const [configBusy, setConfigBusy] = React.useState(false);
+    const [configMessage, setConfigMessage] = React.useState('');
+    const [keysBusy, setKeysBusy] = React.useState(false);
+    const [keysMessage, setKeysMessage] = React.useState('');
+    const [proxyExpirySeconds, setProxyExpirySeconds] = React.useState('');
+    const [issuerExpirySeconds, setIssuerExpirySeconds] = React.useState('');
+    const [proxyKeyStatusText, setProxyKeyStatusText] = React.useState('Loading...');
+    const [issuerKeyStatusText, setIssuerKeyStatusText] = React.useState('Loading...');
+    const [adminKeyStatusText, setAdminKeyStatusText] = React.useState('Loading...');
+    const [jwtInboundMode, setJwtInboundMode] = React.useState('none');
+    const [jwtInboundHeader, setJwtInboundHeader] = React.useState('Authorization');
+    const [jwtInboundScheme, setJwtInboundScheme] = React.useState('');
+    const [jwtInboundIssuer, setJwtInboundIssuer] = React.useState('');
+    const [jwtInboundAudience, setJwtInboundAudience] = React.useState('');
+    const [jwtInboundClockSkew, setJwtInboundClockSkew] = React.useState('');
+    const [jwtInboundTsFormat, setJwtInboundTsFormat] = React.useState('epoch_ms');
+    const [jwtInboundJwksEnabled, setJwtInboundJwksEnabled] = React.useState(false);
+    const [jwtInboundJwksRequestDraft, setJwtInboundJwksRequestDraft] = React.useState(requestTemplateToDraft({}, 'GET'));
+    const [jwtOutboundMode, setJwtOutboundMode] = React.useState('none');
+    const [jwtOutboundHeader, setJwtOutboundHeader] = React.useState('Authorization');
+    const [jwtOutboundScheme, setJwtOutboundScheme] = React.useState('');
+    const [jwtOutboundIssuer, setJwtOutboundIssuer] = React.useState('');
+    const [jwtOutboundAudience, setJwtOutboundAudience] = React.useState('');
+    const [jwtOutboundSubject, setJwtOutboundSubject] = React.useState('');
+    const [jwtOutboundTtl, setJwtOutboundTtl] = React.useState('');
     const [sandboxAuthMode, setSandboxAuthMode] = React.useState('admin_token');
     const [sandboxAuthValue, setSandboxAuthValue] = React.useState('');
     const [sandboxTemplateKey, setSandboxTemplateKey] = React.useState('status_page');
@@ -426,6 +548,92 @@
       return lines.join('\n');
     }
 
+    function setRequestTemplateField(setter, field, value) {
+      setter((prev) => ({ ...prev, [field]: value }));
+    }
+
+    function renderRequestTemplateForm({ idPrefix, draft, setDraft, enableAuth, fixedAdvancedProfile }) {
+      const current = draft || requestTemplateToDraft({}, 'POST');
+      const authType = String(current.authType || 'none');
+      return e('div', {},
+        enableAuth ? e('div', {},
+          e('label', { className: 'ra-field', htmlFor: idPrefix + '-auth-type' }, 'Authentication Type'),
+          e('select', {
+            id: idPrefix + '-auth-type',
+            className: 'ra-select',
+            value: authType,
+            onChange: (ev) => setRequestTemplateField(setDraft, 'authType', ev.target.value),
+          },
+            e('option', { value: 'none' }, 'None'),
+            e('option', { value: 'static' }, 'Static'),
+            e('option', { value: 'advanced' }, 'Advanced (OAuth/Rotation)')
+          ),
+          authType === 'static' ? e('div', {},
+            e('label', { className: 'ra-field', htmlFor: idPrefix + '-auth-header' }, 'Auth header name'),
+            e('input', {
+              id: idPrefix + '-auth-header',
+              className: 'ra-input',
+              value: String(current.authHeaderName || 'Authorization'),
+              onChange: (ev) => setRequestTemplateField(setDraft, 'authHeaderName', ev.target.value),
+              placeholder: 'Authorization',
+            }),
+            e('label', { className: 'ra-field', htmlFor: idPrefix + '-auth-secret' }, 'Use secret slot'),
+            e('select', {
+              id: idPrefix + '-auth-secret',
+              className: 'ra-select',
+              value: String(current.authSecretRef || ''),
+              onChange: (ev) => setRequestTemplateField(setDraft, 'authSecretRef', ev.target.value),
+            },
+              e('option', { value: '' }, 'Select secret slot'),
+              e('option', { value: 'secret1' }, 'secret1'),
+              e('option', { value: 'secret2' }, 'secret2')
+            )
+          ) : null,
+          authType === 'advanced' ? e('div', { className: 'ra-dim', style: { marginTop: '4px' } },
+            'Uses key-rotation profile: ', String(fixedAdvancedProfile || 'target')
+          ) : null
+        ) : null,
+        e('p', { style: { margin: '10px 0 6px', fontWeight: 700 } }, 'HTTP Request'),
+        e('label', { className: 'ra-field', htmlFor: idPrefix + '-method' }, 'Method'),
+        e('select', {
+          id: idPrefix + '-method',
+          className: 'ra-select',
+          value: String(current.method || 'POST'),
+          onChange: (ev) => setRequestTemplateField(setDraft, 'method', ev.target.value),
+        },
+          e('option', { value: 'GET' }, 'GET'),
+          e('option', { value: 'POST' }, 'POST'),
+          e('option', { value: 'PUT' }, 'PUT'),
+          e('option', { value: 'PATCH' }, 'PATCH'),
+          e('option', { value: 'DELETE' }, 'DELETE')
+        ),
+        e('label', { className: 'ra-field', htmlFor: idPrefix + '-url' }, 'URL'),
+        e('input', {
+          id: idPrefix + '-url',
+          className: 'ra-input',
+          value: String(current.url || ''),
+          onChange: (ev) => setRequestTemplateField(setDraft, 'url', ev.target.value),
+          placeholder: 'https://',
+        }),
+        e('label', { className: 'ra-field', htmlFor: idPrefix + '-headers' }, 'Headers'),
+        e('textarea', {
+          id: idPrefix + '-headers',
+          className: 'ra-textarea',
+          value: String(current.headersText || ''),
+          onChange: (ev) => setRequestTemplateField(setDraft, 'headersText', ev.target.value),
+          placeholder: 'Header-Name: value',
+        }),
+        e('label', { className: 'ra-field', htmlFor: idPrefix + '-body' }, 'Request Body'),
+        e('textarea', {
+          id: idPrefix + '-body',
+          className: 'ra-textarea',
+          value: String(current.bodyText || ''),
+          onChange: (ev) => setRequestTemplateField(setDraft, 'bodyText', ev.target.value),
+          placeholder: 'JSON or raw text',
+        })
+      );
+    }
+
     function applySandboxTemplate(key) {
       const nextKey = String(key || '');
       const tpl = sandboxTemplates[nextKey];
@@ -476,6 +684,239 @@
       );
       setNetworkRpmEnabled(!!requestRateLimit.enabled);
       setNetworkRpmLimit(String(Number(requestRateLimit.rpm_rate_limit || 120)));
+    }
+
+    function formatKeyStatusBlock(kindLabel, keyData) {
+      const data = keyData || {};
+      const primaryState = data.primary_active ? 'active' : 'inactive';
+      const secondaryState = data.secondary_active ? 'active' : 'inactive';
+      const primaryCreated = formatTimestamp(data.kind_primary_key_created_at);
+      const secondaryCreated = formatTimestamp(data.kind_secondary_key_created_at);
+      const expiry = data.expiry_seconds == null ? 'Never' : (String(data.expiry_seconds) + 's');
+      return [
+        kindLabel + ' Key',
+        'Primary: ' + primaryState + ' (created: ' + primaryCreated + ')',
+        'Secondary: ' + secondaryState + ' (created: ' + secondaryCreated + ')',
+        'Expiry: ' + expiry,
+      ].join('\n');
+    }
+
+    function applyKeysStatusState(payload) {
+      const data = payload?.data || {};
+      setProxyKeyStatusText(formatKeyStatusBlock('Proxy', data.proxy));
+      setIssuerKeyStatusText(formatKeyStatusBlock('Issuer', data.issuer));
+      setAdminKeyStatusText(formatKeyStatusBlock('Admin', data.admin));
+    }
+
+    function applyJwtConfigState(payload) {
+      const data = payload?.data || {};
+      const jwt = data.jwt || {};
+      const inbound = jwt.inbound || {};
+      const outbound = jwt.outbound || {};
+      setProxyExpirySeconds(data.proxy_expiry_seconds == null ? '' : String(data.proxy_expiry_seconds));
+      setIssuerExpirySeconds(data.issuer_expiry_seconds == null ? '' : String(data.issuer_expiry_seconds));
+      const inboundEnabled = !!inbound.enabled;
+      const inboundMode = inboundEnabled ? String(inbound.mode || 'shared_secret') : 'none';
+      setJwtInboundMode(inboundMode);
+      setJwtInboundHeader(String(inbound.header || 'Authorization'));
+      setJwtInboundScheme(String(inbound.scheme || ''));
+      setJwtInboundIssuer(String(inbound.issuer || ''));
+      setJwtInboundAudience(String(inbound.audience || ''));
+      setJwtInboundClockSkew(inbound.clock_skew_seconds == null ? '' : String(inbound.clock_skew_seconds));
+      const inboundRequest = inbound.http_request || jwt.http_request || {};
+      setJwtInboundJwksRequestDraft(requestTemplateToDraft(inboundRequest, 'GET'));
+      setJwtInboundJwksEnabled(inboundMode === 'jwks' && !!inboundRequest?.url);
+      setJwtInboundTsFormat(String(data.jwt_inbound_timestamp_format || 'epoch_ms'));
+      const outboundEnabled = !!outbound.enabled;
+      setJwtOutboundMode(outboundEnabled ? 'shared_secret' : 'none');
+      setJwtOutboundHeader(String(outbound.header || 'Authorization'));
+      setJwtOutboundScheme(String(outbound.scheme || ''));
+      setJwtOutboundIssuer(String(outbound.issuer || ''));
+      setJwtOutboundAudience(String(outbound.audience || ''));
+      setJwtOutboundSubject(String(outbound.subject || ''));
+      setJwtOutboundTtl(outbound.ttl_seconds == null ? '' : String(outbound.ttl_seconds));
+    }
+
+    function applyLoggingExternalState(configPayload, secretPayload) {
+      const data = configPayload?.data || {};
+      const request = data.request || {};
+      setLoggingExternalEnabled(!!data.enabled);
+      setLoggingExternalRequestDraft(requestTemplateToDraft(request, 'POST'));
+      setLoggingExternalTsFormat(String(data.timestamp_format || 'epoch_ms'));
+      setLoggingExternalSecretSet(!!secretPayload?.data?.secret_set);
+    }
+
+    async function refreshConfigEditor() {
+      setError('');
+      try {
+        const cfgYaml = await apiText('/config');
+        setYamlText(String(cfgYaml || ''));
+        setProxyName(parseTopLevelYamlValue(cfgYaml, 'proxyName'));
+        setTargetHost(parseTopLevelYamlValue(cfgYaml, 'targetHost'));
+      } catch (err) {
+        setError(String(err && err.message || err));
+      }
+    }
+
+    async function saveConfigEditor() {
+      if (!configEditUnlocked) {
+        setError('YAML editor is locked. Click Unlock editing first.');
+        return;
+      }
+      setConfigBusy(true);
+      setConfigMessage('');
+      setError('');
+      try {
+        await putYaml('/config', yamlText);
+        setConfigMessage('YAML configuration saved.');
+        setProxyName(parseTopLevelYamlValue(yamlText, 'proxyName'));
+        setTargetHost(parseTopLevelYamlValue(yamlText, 'targetHost'));
+      } catch (err) {
+        setError(String(err && err.message || err));
+      } finally {
+        setConfigBusy(false);
+      }
+    }
+
+    async function downloadLatestYaml() {
+      try {
+        const latest = await apiText('/config');
+        const blob = new Blob([String(latest || '')], { type: 'text/yaml;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const now = new Date();
+        const y = String(now.getFullYear());
+        const m = String(now.getMonth() + 1).padStart(2, '0');
+        const d = String(now.getDate()).padStart(2, '0');
+        const hh = String(now.getHours()).padStart(2, '0');
+        const mm = String(now.getMinutes()).padStart(2, '0');
+        const ss = String(now.getSeconds()).padStart(2, '0');
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'simpleproxy-config-' + y + m + d + '-' + hh + mm + ss + '.yaml';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        setError(String(err && err.message || err));
+      }
+    }
+
+    async function refreshKeysView() {
+      setError('');
+      try {
+        const [keysPayload, jwtPayload] = await Promise.all([
+          apiJson('/keys', 'GET'),
+          apiJson('/jwt-config', 'GET'),
+        ]);
+        if (!keysPayload || !jwtPayload) return;
+        applyKeysStatusState(keysPayload);
+        applyJwtConfigState(jwtPayload);
+      } catch (err) {
+        setError(String(err && err.message || err));
+      }
+    }
+
+    async function rotateKeyByKind(kind) {
+      setKeysBusy(true);
+      setKeysMessage('');
+      setError('');
+      try {
+        await apiJson('/keys/' + encodeURIComponent(kind) + '/rotate', 'POST');
+        await refreshKeysView();
+        setKeysMessage(String(kind).toUpperCase() + ' key rotated.');
+      } catch (err) {
+        setError(String(err && err.message || err));
+      } finally {
+        setKeysBusy(false);
+      }
+    }
+
+    async function saveKeysView() {
+      setKeysBusy(true);
+      setKeysMessage('');
+      setError('');
+      try {
+        const inboundMode = String(jwtInboundMode || 'none');
+        const inboundEnabled = inboundMode !== 'none';
+        const outboundEnabled = String(jwtOutboundMode || 'none') !== 'none';
+        const useJwksRequest = inboundMode === 'jwks' && !!jwtInboundJwksEnabled;
+        const jwksRequest = useJwksRequest
+          ? requestTemplateDraftToPayload(jwtInboundJwksRequestDraft, 'jwt_inbound')
+          : null;
+        const jwtPayload = {
+          enabled: inboundEnabled || outboundEnabled,
+          inbound: {
+            enabled: inboundEnabled,
+            mode: inboundEnabled ? inboundMode : 'shared_secret',
+            header: String(jwtInboundHeader || 'Authorization'),
+            scheme: String(jwtInboundScheme || '').trim() || null,
+            issuer: String(jwtInboundIssuer || '').trim() || null,
+            audience: String(jwtInboundAudience || '').trim() || null,
+            clock_skew_seconds: String(jwtInboundClockSkew || '').trim() === '' ? null : Number(jwtInboundClockSkew),
+            http_request: jwksRequest,
+          },
+          outbound: {
+            enabled: outboundEnabled,
+            header: String(jwtOutboundHeader || 'Authorization'),
+            scheme: String(jwtOutboundScheme || '').trim() || null,
+            issuer: String(jwtOutboundIssuer || '').trim() || null,
+            audience: String(jwtOutboundAudience || '').trim() || null,
+            subject: String(jwtOutboundSubject || '').trim() || null,
+            ttl_seconds: String(jwtOutboundTtl || '').trim() === '' ? null : Number(jwtOutboundTtl),
+          },
+        };
+        await apiJson('/jwt-config', 'PUT', {
+          jwt: jwtPayload,
+          jwt_inbound_timestamp_format: String(jwtInboundTsFormat || 'epoch_ms'),
+          proxy_expiry_seconds: String(proxyExpirySeconds || '').trim() === '' ? null : Number(proxyExpirySeconds),
+          issuer_expiry_seconds: String(issuerExpirySeconds || '').trim() === '' ? null : Number(issuerExpirySeconds),
+        });
+        await refreshKeysView();
+        setKeysMessage('API Keys and JWT settings saved.');
+      } catch (err) {
+        setError(String(err && err.message || err));
+      } finally {
+        setKeysBusy(false);
+      }
+    }
+
+    async function refreshLoggingExternalView() {
+      setError('');
+      try {
+        const [configPayload, secretPayload] = await Promise.all([
+          apiJson('/logging-config', 'GET'),
+          apiJson('/debug/loggingSecret', 'GET'),
+        ]);
+        if (!configPayload || !secretPayload) return;
+        applyLoggingExternalState(configPayload, secretPayload);
+      } catch (err) {
+        setError(String(err && err.message || err));
+      }
+    }
+
+    async function saveLoggingExternalConfig() {
+      setLoggingExternalBusy(true);
+      setLoggingExternalMessage('');
+      setError('');
+      try {
+        await apiJson('/logging-config', 'PUT', {
+          enabled: !!loggingExternalEnabled,
+          request: requestTemplateDraftToPayload(loggingExternalRequestDraft, 'logging'),
+          timestamp_format: String(loggingExternalTsFormat || 'epoch_ms'),
+        });
+        const secretValue = String(loggingExternalSecretValue || '').trim();
+        if (secretValue) {
+          await apiJson('/debug/loggingSecret', 'PUT', { value: secretValue });
+          setLoggingExternalSecretValue('');
+        }
+        await refreshLoggingExternalView();
+        setLoggingExternalMessage('External logging configuration saved.');
+      } catch (err) {
+        setError(String(err && err.message || err));
+      } finally {
+        setLoggingExternalBusy(false);
+      }
     }
 
     async function refreshTransformViews() {
@@ -601,6 +1042,8 @@
             }
           })();
           await loadTargetSecretState();
+          await refreshKeysView();
+          await refreshLoggingExternalView();
         } catch (err) {
           setError(String(err && err.message || err));
         }

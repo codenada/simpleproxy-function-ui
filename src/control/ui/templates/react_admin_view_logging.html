@@ -1,6 +1,6 @@
 const loggingView = e('div', {},
   e('h1', { className: 'ra-title' }, 'Logging'),
-  e('p', { className: 'ra-sub' }, 'Control debug sessions, inspect latest log payload, and launch live log streaming.'),
+  e('p', { className: 'ra-sub' }, 'Control debug sessions, inspect latest log payload, and manage external logging endpoint settings.'),
   e('div', { className: 'ra-card' },
     e('div', { className: 'ra-grid' },
       e('div', {},
@@ -62,7 +62,7 @@ const loggingView = e('div', {},
         type: 'button',
         className: 'ra-btn',
         onClick: openLiveLogPage,
-      }, 'Open Live Log')
+      }, 'Launch Live Logging')
     ),
     loggingMessage ? e('div', { className: 'ra-ok', style: { marginTop: '8px' } }, loggingMessage) : null
   ),
@@ -76,5 +76,55 @@ const loggingView = e('div', {},
       }, 'Refresh')
     ),
     e('pre', { className: 'ra-pre', style: { marginTop: '10px' } }, loggingLastOutput || 'Debug output appears here.')
+  ),
+  e('div', { className: 'ra-card' },
+    e('p', { style: { margin: '0 0 8px 0', fontWeight: 700 } }, 'External Logging Configuration'),
+    e('label', { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
+      e('input', {
+        type: 'checkbox',
+        checked: loggingExternalEnabled,
+        onChange: (ev) => setLoggingExternalEnabled(!!ev.target.checked),
+      }),
+      e('span', null, 'Enable external logging endpoint')
+    ),
+    loggingExternalEnabled ? e('div', {},
+      renderRequestTemplateForm({
+        idPrefix: 'ra-logging-ext-req',
+        draft: loggingExternalRequestDraft,
+        setDraft: setLoggingExternalRequestDraft,
+        enableAuth: true,
+        fixedAdvancedProfile: 'logging',
+      }),
+      e('label', { className: 'ra-field', htmlFor: 'ra-logging-ts-format' }, 'Timestamp format'),
+      e('select', {
+        id: 'ra-logging-ts-format',
+        className: 'ra-select',
+        value: loggingExternalTsFormat,
+        onChange: (ev) => setLoggingExternalTsFormat(ev.target.value),
+      },
+        e('option', { value: 'epoch_ms' }, 'epoch_ms'),
+        e('option', { value: 'epoch_seconds' }, 'epoch_seconds'),
+        e('option', { value: 'iso_8601' }, 'iso_8601')
+      ),
+      e('label', { className: 'ra-field', htmlFor: 'ra-logging-secret' }, 'Logging secret (optional, write-only)'),
+      e('input', {
+        id: 'ra-logging-secret',
+        className: 'ra-input',
+        type: 'password',
+        value: loggingExternalSecretValue,
+        onChange: (ev) => setLoggingExternalSecretValue(ev.target.value),
+        placeholder: loggingExternalSecretSet ? 'Leave blank to keep current secret' : 'Set logging secret',
+      }),
+      e('div', { className: 'ra-dim', style: { marginTop: '6px' } }, loggingExternalSecretSet ? 'Secret is currently set.' : 'Secret is not currently set.')
+    ) : null,
+    e('div', { className: 'ra-secret-actions', style: { marginTop: '12px' } },
+      e('button', {
+        type: 'button',
+        className: 'ra-btn primary',
+        onClick: saveLoggingExternalConfig,
+        disabled: loggingExternalBusy,
+      }, loggingExternalBusy ? 'Saving...' : 'Save')
+    ),
+    loggingExternalMessage ? e('div', { className: 'ra-ok', style: { marginTop: '8px' } }, loggingExternalMessage) : null
   )
 );

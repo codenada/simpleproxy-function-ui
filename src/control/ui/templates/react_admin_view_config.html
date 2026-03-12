@@ -1,4 +1,54 @@
 const configView = e('div', {},
   e('h1', { className: 'ra-title' }, 'YAML Configuration'),
-  e('p', { className: 'ra-sub' }, 'Migration pending.')
+  e('p', { className: 'ra-sub' }, 'Edit the full YAML configuration used by the runtime.'),
+  e('div', { className: 'ra-card' },
+    e('div', {
+      style: {
+        margin: '0 0 8px 0',
+        padding: '10px 12px',
+        border: '1px solid #fdba74',
+        background: '#fff7ed',
+        color: '#9a3412',
+        borderRadius: '8px',
+        lineHeight: '1.5',
+      },
+    },
+      configEditUnlocked
+        ? 'YAML editing is unlocked for this session. Review changes carefully before saving.'
+        : 'Warning: Direct YAML edits can break runtime behavior. Unlock editing only if you understand the config schema.'
+    ),
+    e('div', { style: { marginBottom: '10px' } },
+      e('button', {
+        type: 'button',
+        className: 'ra-btn',
+        disabled: configEditUnlocked,
+        onClick: () => setConfigEditUnlocked(true),
+      }, configEditUnlocked ? 'Editing unlocked' : 'Unlock editing')
+    ),
+    e('textarea', {
+      id: 'ra-config-yaml',
+      className: 'ra-textarea',
+      disabled: !configEditUnlocked,
+      value: yamlText,
+      onChange: (ev) => setYamlText(ev.target.value),
+      style: {
+        minHeight: '360px',
+        background: configEditUnlocked ? '#fff' : '#f8fafc',
+        color: configEditUnlocked ? '#0f172a' : '#334155',
+      },
+    }),
+    e('div', { style: { marginTop: '8px', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' } },
+      e('button', { type: 'button', className: 'ra-link-btn', onClick: refreshConfigEditor }, 'Reload config'),
+      e('button', { type: 'button', className: 'ra-btn', onClick: downloadLatestYaml }, 'Download latest YAML')
+    ),
+    e('div', { className: 'ra-secret-actions', style: { marginTop: '12px' } },
+      e('button', {
+        type: 'button',
+        className: 'ra-btn primary',
+        onClick: saveConfigEditor,
+        disabled: configBusy || !configEditUnlocked,
+      }, configBusy ? 'Saving...' : 'Save')
+    ),
+    configMessage ? e('div', { className: 'ra-ok', style: { marginTop: '8px' } }, configMessage) : null
+  )
 );

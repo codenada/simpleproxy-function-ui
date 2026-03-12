@@ -291,6 +291,128 @@ function createControlConfigHandlers(deps) {
     });
   }
 
+  function normalizeRequestTemplate(requestIn) {
+    if (!isNonArrayObject(requestIn)) {
+      throw new HttpError(400, "INVALID_REQUEST", "request must be an object");
+    }
+    const method = String(requestIn.method || "POST").trim().toUpperCase();
+    const url = String(requestIn.url || "").trim();
+    const headers = isNonArrayObject(requestIn.headers) ? requestIn.headers : {};
+    const bodyType = String(requestIn.body_type || "none").trim().toLowerCase();
+    const allowedBodyTypes = new Set(["none", "json", "raw", "urlencoded"]);
+    if (!allowedBodyTypes.has(bodyType)) {
+      throw new HttpError(400, "INVALID_REQUEST", "request.body_type must be one of none, json, raw, urlencoded");
+    }
+    const out = {
+      method: method || "POST",
+      url,
+      headers,
+      body_type: bodyType,
+      body: bodyType === "none" ? {} : (requestIn.body ?? (bodyType === "json" ? {} : "")),
+    };
+    if (isNonArrayObject(requestIn.authorization)) {
+      out.authorization = requestIn.authorization;
+    }
+    return out;
+  }
+
+  function normalizeOptionalString(value) {
+    const text = String(value == null ? "" : value).trim();
+    return text || null;
+  }
+
+  function normalizeOptionalInteger(value, field) {
+    if (value === null || value === undefined || value === "") return null;
+    const num = Number(value);
+    if (!Number.isInteger(num)) {
+      throw new HttpError(400, "INVALID_REQUEST", `${field} must be an integer or null`);
+    }
+    return num;
+  }
+
+  async function handleJwtConfigGet(env) {
+    const config = await loadConfigV1(env);
+    const jwt = config?.jwt || {};
+    const apiKeyPolicy = config?.apiKeyPolicy || {};
+    const jwtInboundTimestampFormat = config?.http_auth?.profiles?.jwt_inbound?.timestamp_format || "epoch_ms";
+    return jsonResponse(200, {
+      ok: true,
+      data: {
+        jwt,
+        jwt_inbound_timestamp_format: jwtInboundTimestampFormat,
+        proxy_expiry_seconds: apiKeyPolicy.proxyExpirySeconds ?? null,
+        issuer_expiry_seconds: apiKeyPolicy.issuerExpirySeconds ?? null,
+      },
+      meta: {},
+    });
+  }
+
+  async function handleJwtConfigPut(request, env) {
+    enforceInvokeContentType(request);
+    const body = await readJsonWithLimit(request, getEnvInt(env, "MAX_REQ_BYTES", defaults.MAX_REQ_BYTES));
+    if (!isNonArrayObject(body)) {
+      throw new HttpError(400, "INVALID_REQUEST", "Body must be an object");
+    }
+
+    const existing = await loadConfigV1(env);
+    const existingJwt = isNonArrayObject(existing?.jwt) ? existing.jwt : {};
+    const jwtIn = isNonArrayObject(body.jwt) ? body.jwt : {};
+    const inboundIn = isNonArrayObject(jwtIn.inbound) ? jwtIn.inbound : {};
+    const outboundIn = isNonArrayObject(jwtIn.outbound) ? jwtIn.outbound : {};
+    const inboundReq = inboundIn.http_request === null
+      ? null
+      : (inboundIn.http_request === undefined ? (existingJwt?.inbound?.http_request ?? null) : normalizeRequestTemplate(inboundIn.http_request));
+    const jwtNext = {
+      enabled: !!jwtIn.enabled,
+      inbound: {
+        enabled: !!inboundIn.enabled,
+        mode: String(inboundIn.mode || "shared_secret"),
+        header: String(inboundIn.header || "Authorization"),
+        scheme: normalizeOptionalString(inboundIn.scheme),
+        issuer: normalizeOptionalString(inboundIn.issuer),
+        audience: normalizeOptionalString(inboundIn.audience),
+        http_request: inboundReq,
+        clock_skew_seconds: normalizeOptionalInteger(inboundIn.clock_skew_seconds, "jwt.inbound.clock_skew_seconds"),
+      },
+      outbound: {
+        enabled: !!outboundIn.enabled,
+        header: String(outboundIn.header || "Authorization"),
+        scheme: normalizeOptionalString(outboundIn.scheme),
+        issuer: normalizeOptionalString(outboundIn.issuer),
+        audience: normalizeOptionalString(outboundIn.audience),
+        subject: normalizeOptionalString(outboundIn.subject),
+        ttl_seconds: normalizeOptionalInteger(outboundIn.ttl_seconds, "jwt.outbound.ttl_seconds"),
+      },
+      http_request: inboundReq,
+      authorization: inboundReq?.authorization || null,
+    };
+    const nextHttpAuth = isNonArrayObject(existing?.http_auth) ? { ...existing.http_auth } : {};
+    const nextProfiles = isNonArrayObject(nextHttpAuth.profiles) ? { ...nextHttpAuth.profiles } : {};
+    const jwtInboundProfile = isNonArrayObject(nextProfiles.jwt_inbound) ? { ...nextProfiles.jwt_inbound } : {};
+    jwtInboundProfile.timestamp_format = String(body.jwt_inbound_timestamp_format || jwtInboundProfile.timestamp_format || "epoch_ms");
+    nextProfiles.jwt_inbound = jwtInboundProfile;
+    nextHttpAuth.profiles = nextProfiles;
+    const next = {
+      ...existing,
+      jwt: jwtNext,
+      http_auth: nextHttpAuth,
+      apiKeyPolicy: {
+        proxyExpirySeconds: toNullablePositiveInt(body.proxy_expiry_seconds, "proxy_expiry_seconds"),
+        issuerExpirySeconds: toNullablePositiveInt(body.issuer_expiry_seconds, "issuer_expiry_seconds"),
+      },
+    };
+    const normalized = await saveConfigObjectV1(next, env);
+    return jsonResponse(200, {
+      ok: true,
+      data: {
+        message: "JWT configuration updated",
+        jwt: normalized.jwt,
+        api_key_policy: normalized.apiKeyPolicy,
+      },
+      meta: {},
+    });
+  }
+
   function normalizeTransformRuleInput(rule, direction) {
     if (!isNonArrayObject(rule)) return null;
     const out = {
@@ -461,16 +583,72 @@ function createControlConfigHandlers(deps) {
     });
   }
 
+  async function handleLoggingConfigGet(env) {
+    const config = await loadConfigV1(env);
+    const endpointRequest = config?.debug?.loggingEndpoint?.http_request || null;
+    const tsFormat = config?.http_auth?.profiles?.logging?.timestamp_format || "epoch_ms";
+    return jsonResponse(200, {
+      ok: true,
+      data: {
+        enabled: !!(endpointRequest && endpointRequest.url),
+        request: endpointRequest,
+        timestamp_format: tsFormat,
+      },
+      meta: {},
+    });
+  }
+
+  async function handleLoggingConfigPut(request, env) {
+    enforceInvokeContentType(request);
+    const body = await readJsonWithLimit(request, getEnvInt(env, "MAX_REQ_BYTES", defaults.MAX_REQ_BYTES));
+    if (!isNonArrayObject(body)) {
+      throw new HttpError(400, "INVALID_REQUEST", "Body must be an object");
+    }
+    const enabled = !!body.enabled;
+    const existing = await loadConfigV1(env);
+    const nextDebug = isNonArrayObject(existing?.debug) ? { ...existing.debug } : {};
+    const requestTemplate = enabled ? normalizeRequestTemplate(body.request) : null;
+    nextDebug.loggingEndpoint = {
+      ...(isNonArrayObject(nextDebug.loggingEndpoint) ? nextDebug.loggingEndpoint : {}),
+      http_request: requestTemplate,
+    };
+
+    const nextHttpAuth = isNonArrayObject(existing?.http_auth) ? { ...existing.http_auth } : {};
+    const nextProfiles = isNonArrayObject(nextHttpAuth.profiles) ? { ...nextHttpAuth.profiles } : {};
+    const loggingProfile = isNonArrayObject(nextProfiles.logging) ? { ...nextProfiles.logging } : {};
+    loggingProfile.timestamp_format = String(body.timestamp_format || loggingProfile.timestamp_format || "epoch_ms");
+    nextProfiles.logging = loggingProfile;
+    nextHttpAuth.profiles = nextProfiles;
+
+    const normalized = await saveConfigObjectV1({
+      ...existing,
+      debug: nextDebug,
+      http_auth: nextHttpAuth,
+    }, env);
+    return jsonResponse(200, {
+      ok: true,
+      data: {
+        message: "Logging configuration updated",
+        enabled: !!(normalized?.debug?.loggingEndpoint?.http_request?.url),
+      },
+      meta: {},
+    });
+  }
+
   return {
     handleConfigGet,
     handleConfigPut,
     handleConfigTestRule,
     handleKeyRotationConfigGet,
     handleKeyRotationConfigPut,
+    handleJwtConfigGet,
+    handleJwtConfigPut,
     handleTransformConfigGet,
     handleTransformConfigPut,
     handleNetworkControlsGet,
     handleNetworkControlsPut,
+    handleLoggingConfigGet,
+    handleLoggingConfigPut,
   };
 }
 
