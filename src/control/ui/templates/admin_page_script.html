@@ -147,7 +147,9 @@
             const chipId = prefix + '-secret-' + suffix + '-chip';
             return '<span id="' + chipId + '"'
               + ' style="display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;border:1px solid #cbd5e1;background:#f8fafc;color:#334155;font-size:12px;">'
-              + htmlEscape(label) + '</span>';
+              + '<span style="font-weight:600;">' + htmlEscape(label) + ' (empty)</span>'
+              + '<a href="#" data-secret-action="add" data-secret-slot="' + slot + '" style="font-size:11px;color:inherit;text-decoration:underline;">add</a>'
+              + '</span>';
           };
           return ''
             + '<div style="margin-top:10px;">'
@@ -198,11 +200,11 @@
                     + '<option value="advanced">Advanced (OAuth/Rotation)</option>'
                 + '</select>'))
                 + renderRequestSecretSlotsCompact(prefix)
-                + '<div id="' + prefix + '-oauth-preset-wrap" style="margin-top:8px;display:none;">'
-                + '<button type="button" id="' + prefix + '-oauth-preset-btn"'
-                + ' style="padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#0f172a;">Fill OAuth Preset</button>'
-                + '</div>'
-                + '<div id="' + prefix + '-auth-static-wrap" style="display:none;">'
+            + '<div id="' + prefix + '-oauth-preset-wrap" style="margin-top:8px;display:none;">'
+            + '<button type="button" id="' + prefix + '-oauth-preset-btn"'
+            + ' style="padding:6px 10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#0f172a;">Fill OAuth Preset</button>'
+            + '</div>'
+            + '<div id="' + prefix + '-auth-static-wrap" style="display:none;">'
                 + '<label for="' + prefix + '-auth-header-name" style="display:block;margin:10px 0 4px;">Auth header name</label>'
                 + '<input id="' + prefix + '-auth-header-name" type="text" placeholder="Authorization"'
                 + ' style="width:100%;max-width:360px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />'
@@ -212,11 +214,12 @@
                 + '<option value="">Select secret slot</option>'
                 + '<option value="secret1">secret1</option>'
                 + '<option value="secret2">secret2</option>'
-                + '</select>'
-                + '<div style="font-size:12px;color:#64748b;margin-top:4px;">Select which saved slot to inject into the auth header.</div>'
-                + '</div>'
-                + '</div>')
-              : '')
+            + '</select>'
+            + '<div style="font-size:12px;color:#64748b;margin-top:4px;">Select which saved slot to inject into the auth header.</div>'
+            + '</div>'
+            + '</div>')
+          : '')
+            + '<p id="' + prefix + '-request-heading" style="margin:10px 0 6px;"><b>Token Request</b></p>'
             + '<div id="' + prefix + '-request-core-wrap">'
             + '<div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">'
             + '<div style="min-width:110px;max-width:120px;flex:0 0 120px;">'
@@ -308,9 +311,16 @@
           const oauthPresetBtn = el(prefix + '-oauth-preset-btn');
           if (oauthPresetBtn && oauthPresetBtn.dataset.bound !== '1') {
             oauthPresetBtn.addEventListener('click', () => {
-              applyAuthTypePreset(prefix, 'none', 'advanced');
+              if (el(prefix + '-verb')) el(prefix + '-verb').value = 'POST';
+              if (el(prefix + '-url')) el(prefix + '-url').value = 'https://oauth.example.com/token';
+              if (el(prefix + '-headers')) {
+                el(prefix + '-headers').value = 'Content-Type: application/x-www-form-urlencoded\nAccept: application/json';
+              }
+              if (el(prefix + '-body')) {
+                el(prefix + '-body').value = 'grant_type=client_credentials&client_id=${secret1}&client_secret=${secret2}';
+              }
               showWarning('OAuth preset applied.');
-              markDirty(activeTab);
+              markDirty(currentTabName);
             });
             oauthPresetBtn.dataset.bound = '1';
           }
