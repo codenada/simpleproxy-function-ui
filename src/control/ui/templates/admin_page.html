@@ -33,7 +33,7 @@
           <button type="button" class="tab-btn tab-child" data-tab="inbound-transform">Request Transformations</button>
           <button type="button" class="tab-btn tab-child" data-tab="outbound-transform">Response Transformations</button>
           <div style="margin-top:6px;font-size:12px;color:#64748b;font-weight:700;text-transform:uppercase;">Authorization</div>
-          <button type="button" class="tab-btn tab-child" data-tab="inbound-auth">Keys &amp; Secrets</button>
+          <button type="button" class="tab-btn tab-child" data-tab="inbound-auth">API Keys</button>
            <div style="margin-top:6px;font-size:12px;color:#64748b;font-weight:700;text-transform:uppercase;">Advanced</div>
            <button type="button" class="tab-btn tab-child" data-tab="inbound-traffic-controls">Network Controls</button>
            <button type="button" class="tab-btn tab-child" data-tab="config">YAML Configuration</button>
@@ -42,8 +42,7 @@
          <div style="flex:1;min-width:0;">
         <div id="tab-overview" class="tab-panel">
           <p><b>General</b></p>
-          <p style="margin:0 0 8px 0;"><a href="#" id="overview-refresh-btn">Refresh status</a></p>
-          <div id="overview-output" style="padding:12px;border:1px solid #ddd;border-radius:8px;line-height:1.6;">Click "Refresh status".</div>
+          <div id="overview-output" style="padding:12px;border:1px solid #ddd;border-radius:8px;line-height:1.6;">Loading status...</div>
           <label for="proxy-name" style="display:block;margin:8px 0 4px;">Proxy name</label>
           <input id="proxy-name" type="text" placeholder="friendly name"
             style="width:100%;max-width:520px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;margin-bottom:10px;" />
@@ -64,7 +63,7 @@
           <div id="outbound-auth-detail-fields">
           <p style="margin:10px 0 6px;"><b>Request</b></p>
           <div id="kr-request-form"></div>
-
+          <div id="kr-rotation-fields">
           <label for="kr-key-path" style="display:block;margin:10px 0 4px;">Response Key Path</label>
           <input id="kr-key-path" type="text" placeholder="data.apiKey"
             style="width:100%;max-width:520px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />
@@ -92,6 +91,7 @@
           <input id="kr-retry-on-401" type="checkbox" />
           </div>
           </div>
+        </div>
         </div>
         <div id="tab-debug" class="tab-panel" style="display:none;">
            <p><b>Logging controls</b></p>
@@ -186,8 +186,8 @@
           </div>
         </div>
         <div id="tab-inbound-auth" class="tab-panel" style="display:none;">
-           <p><b>Keys &amp; Secrets</b></p>
-           <p style="margin:6px 0 10px;color:#64748b;">Manage key lifecycles and write-only request secret slots.</p>
+           <p><b>API Keys</b></p>
+           <p style="margin:6px 0 10px;color:#64748b;">Manage key lifecycles and request authentication settings.</p>
            <p><b>Proxy Key</b></p>
            <label for="kr-proxy-expiry" style="display:block;margin:10px 0 4px;">Expiration</label>
            <select id="kr-proxy-expiry" style="width:100%;max-width:240px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;">
@@ -206,47 +206,6 @@
            <div id="keys-status-inbound" style="padding:12px;border:1px solid #ddd;border-radius:8px;line-height:1.6;margin-bottom:10px;">Key status will appear here.</div>
            <div style="display:flex;gap:8px;flex-wrap:wrap;">
              <button type="button" id="rotate-proxy-btn">Rotate proxy key</button>
-           </div>
-           <hr style="margin:12px 0;border:none;border-top:1px solid #e2e8f0;" />
-           <p><b>Request Secrets</b></p>
-           <div id="request-secrets-local" data-local-save="1" style="padding:10px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;line-height:1.8;">
-             <div style="margin-bottom:10px;">
-               <label for="request-secret-1" style="display:block;margin:0 0 4px;">Secret Slot 1 (`secret_1`)</label>
-               <div style="font-size:12px;color:#64748b;margin:0 0 6px 0;">
-                 Current status:
-                 <span id="request-secret-1-chip" style="display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid #cbd5e1;background:#f8fafc;color:#334155;font-weight:600;">Unknown</span>
-               </div>
-               <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                 <input id="request-secret-1" type="password" data-local-save="1" placeholder="Enter secret value"
-                   style="width:100%;max-width:420px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />
-                 <a href="#" id="request-secret-1-toggle" data-local-save="1" style="font-size:12px;text-decoration:underline;">show</a>
-                 <button type="button" id="request-secret-1-save-btn" data-local-save="1">Save</button>
-               </div>
-               <div style="font-size:12px;color:#64748b;margin-top:4px;">
-                 <span id="request-secret-1-status">Status: unknown</span>
-                 <span id="request-secret-1-unsaved" style="display:none;margin-left:8px;color:#c2410c;font-weight:600;">Unsaved changes</span>
-               </div>
-               <div style="font-size:12px;color:#64748b;margin-top:2px;">Saving replaces the existing secret.</div>
-             </div>
-             <div style="margin-bottom:4px;">
-               <label for="request-secret-2" style="display:block;margin:0 0 4px;">Secret Slot 2 (`secret_2`)</label>
-               <div style="font-size:12px;color:#64748b;margin:0 0 6px 0;">
-                 Current status:
-                 <span id="request-secret-2-chip" style="display:inline-block;padding:2px 8px;border-radius:999px;border:1px solid #cbd5e1;background:#f8fafc;color:#334155;font-weight:600;">Unknown</span>
-               </div>
-               <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                 <input id="request-secret-2" type="password" data-local-save="1" placeholder="Enter secret value"
-                   style="width:100%;max-width:420px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />
-                 <a href="#" id="request-secret-2-toggle" data-local-save="1" style="font-size:12px;text-decoration:underline;">show</a>
-                 <button type="button" id="request-secret-2-save-btn" data-local-save="1">Save</button>
-               </div>
-               <div style="font-size:12px;color:#64748b;margin-top:4px;">
-                 <span id="request-secret-2-status">Status: unknown</span>
-                 <span id="request-secret-2-unsaved" style="display:none;margin-left:8px;color:#c2410c;font-weight:600;">Unsaved changes</span>
-               </div>
-               <div style="font-size:12px;color:#64748b;margin-top:2px;">Saving replaces the existing secret.</div>
-             </div>
-             <p style="font-size:12px;color:#64748b;margin:6px 0 0 0;">Secrets are write-only. Enter a value and click Save to store it.</p>
            </div>
            <p><b>JWT (Optional)</b></p>
            <p style="margin:6px 0 10px;color:#64748b;">Configure inbound JWT verification and outbound JWT issuance.</p>

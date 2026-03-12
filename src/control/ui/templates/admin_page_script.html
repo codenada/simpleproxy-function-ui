@@ -141,6 +141,34 @@
                 + '</div>')
               : '');
         }
+        function renderRequestSecretSlotsCompact(prefix) {
+          const renderRow = (slot, label) => {
+            const suffix = slot === 'secret_2' ? '2' : '1';
+            const inputId = prefix + '-secret-' + suffix + '-input';
+            const toggleId = prefix + '-secret-' + suffix + '-toggle';
+            const saveId = prefix + '-secret-' + suffix + '-save-btn';
+            const chipId = prefix + '-secret-' + suffix + '-chip';
+            const unsavedId = prefix + '-secret-' + suffix + '-unsaved';
+            return ''
+              + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:6px 0;">'
+              + '<span style="min-width:62px;font-size:12px;color:#334155;font-weight:600;">' + htmlEscape(label) + '</span>'
+              + '<span id="' + chipId + '" style="display:inline-block;padding:1px 8px;border-radius:999px;border:1px solid #cbd5e1;background:#f8fafc;color:#334155;font-size:11px;font-weight:600;">Unknown</span>'
+              + '<input id="' + inputId + '" type="password" data-local-save="1" placeholder="set value"'
+              + ' style="width:220px;max-width:100%;padding:6px 8px;border:1px solid #cbd5e1;border-radius:8px;" />'
+              + '<a href="#" id="' + toggleId + '" data-local-save="1" style="font-size:12px;text-decoration:underline;">show</a>'
+              + '<button type="button" id="' + saveId + '" data-local-save="1"'
+              + ' style="padding:5px 10px;border:1px solid #cbd5e1;border-radius:8px;background:#fff;color:#0f172a;">Save</button>'
+              + '<span id="' + unsavedId + '" style="display:none;font-size:11px;color:#c2410c;font-weight:600;">Unsaved</span>'
+              + '</div>';
+          };
+          return ''
+            + '<div style="margin-top:10px;padding:8px 10px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;">'
+            + '<div style="font-size:12px;color:#334155;font-weight:700;margin-bottom:4px;">Request secret slots</div>'
+            + renderRow('secret_1', 'Secret 1')
+            + renderRow('secret_2', 'Secret 2')
+            + '<div style="font-size:11px;color:#64748b;margin-top:4px;">Write-only. Saved per slot (`secret_1`/`secret_2`) for this auth request profile.</div>'
+            + '</div>';
+        }
         function renderRequestForm(prefix, options) {
           const verbs = Array.isArray(options?.verbs) && options.verbs.length
             ? options.verbs
@@ -196,18 +224,19 @@
                     + '<option value="oauth_client_credentials">OAuth</option>'
                     + '<option value="key_rotation">Generic TTL Rotation</option>'
                     + '</select>'))
+                + renderRequestSecretSlotsCompact(prefix)
                 + '<div id="' + prefix + '-auth-static-wrap" style="display:none;">'
                 + '<label for="' + prefix + '-auth-header-name" style="display:block;margin:10px 0 4px;">Auth header name</label>'
                 + '<input id="' + prefix + '-auth-header-name" type="text" placeholder="Authorization"'
                 + ' style="width:100%;max-width:360px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />'
-                + '<label for="' + prefix + '-auth-secret-ref" style="display:block;margin:10px 0 4px;">Auth key reference</label>'
+                + '<label for="' + prefix + '-auth-secret-ref" style="display:block;margin:10px 0 4px;">Use secret slot</label>'
                 + '<select id="' + prefix + '-auth-secret-ref"'
                 + ' style="width:100%;max-width:360px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;">'
                 + '<option value="">Select secret slot</option>'
                 + '<option value="secret_1">secret_1</option>'
                 + '<option value="secret_2">secret_2</option>'
                 + '</select>'
-                + '<div style="font-size:12px;color:#64748b;margin-top:4px;">Select a saved slot from Keys & Secrets (secret_1 or secret_2).</div>'
+                + '<div style="font-size:12px;color:#64748b;margin-top:4px;">Select which saved slot to inject into the auth header.</div>'
                 + '</div>'
                 + '<div id="' + prefix + '-auth-key-rotation-wrap" style="display:none;">'
                 + '<label style="display:block;margin:10px 0 4px;">Key rotation profile</label>'
@@ -308,52 +337,53 @@
             toggle.textContent = isHidden ? 'hide' : 'show';
           });
         }
-        function requestSecretInputId(slot) {
-          return slot === 'secret_2' ? 'request-secret-2' : 'request-secret-1';
+        function requestSecretInputId(prefix, slot) {
+          const suffix = slot === 'secret_2' ? '2' : '1';
+          return prefix + '-secret-' + suffix + '-input';
         }
-        function requestSecretStatusId(slot) {
-          return slot === 'secret_2' ? 'request-secret-2-status' : 'request-secret-1-status';
+        function requestSecretUnsavedId(prefix, slot) {
+          const suffix = slot === 'secret_2' ? '2' : '1';
+          return prefix + '-secret-' + suffix + '-unsaved';
         }
-        function requestSecretUnsavedId(slot) {
-          return slot === 'secret_2' ? 'request-secret-2-unsaved' : 'request-secret-1-unsaved';
+        function requestSecretChipId(prefix, slot) {
+          const suffix = slot === 'secret_2' ? '2' : '1';
+          return prefix + '-secret-' + suffix + '-chip';
         }
-        function requestSecretChipId(slot) {
-          return slot === 'secret_2' ? 'request-secret-2-chip' : 'request-secret-1-chip';
+        function requestSecretSaveButtonId(prefix, slot) {
+          const suffix = slot === 'secret_2' ? '2' : '1';
+          return prefix + '-secret-' + suffix + '-save-btn';
         }
-        function requestSecretSaveButtonId(slot) {
-          return slot === 'secret_2' ? 'request-secret-2-save-btn' : 'request-secret-1-save-btn';
+        function requestSecretToggleId(prefix, slot) {
+          const suffix = slot === 'secret_2' ? '2' : '1';
+          return prefix + '-secret-' + suffix + '-toggle';
         }
-        function setRequestSecretSlotExists(slot, exists) {
+        function setRequestSecretSlotExists(prefix, slot, exists) {
           requestSecretSlotState[slot] = { exists: !!exists };
-          const statusNode = el(requestSecretStatusId(slot));
-          const chipNode = el(requestSecretChipId(slot));
-          const saveBtn = el(requestSecretSaveButtonId(slot));
-          if (statusNode) statusNode.textContent = 'Status: ' + (exists ? 'saved' : 'not set');
+          const chipNode = el(requestSecretChipId(prefix, slot));
+          const saveBtn = el(requestSecretSaveButtonId(prefix, slot));
           if (chipNode) {
             chipNode.textContent = exists ? 'Set' : 'Not set';
             chipNode.style.borderColor = exists ? '#86efac' : '#cbd5e1';
             chipNode.style.background = exists ? '#ecfdf3' : '#f8fafc';
             chipNode.style.color = exists ? '#166534' : '#334155';
           }
-          if (saveBtn) saveBtn.textContent = exists ? 'Save new value' : 'Save';
+          if (saveBtn) saveBtn.textContent = exists ? 'Replace' : 'Save';
         }
-        function setRequestSecretSlotDirty(slot, dirty) {
-          const input = el(requestSecretInputId(slot));
-          const unsaved = el(requestSecretUnsavedId(slot));
+        function setRequestSecretSlotDirty(prefix, slot, dirty) {
+          const input = el(requestSecretInputId(prefix, slot));
+          const unsaved = el(requestSecretUnsavedId(prefix, slot));
           if (unsaved) unsaved.style.display = dirty ? 'inline' : 'none';
           if (input) {
             input.style.borderColor = dirty ? '#f59e0b' : '#cbd5e1';
             input.style.background = dirty ? '#fffbeb' : '#fff';
           }
         }
-        async function refreshRequestSecretSlotStatus(slot) {
-          const statusNode = el(requestSecretStatusId(slot));
-          if (statusNode) statusNode.textContent = 'Status: checking...';
-          const chipNode = el(requestSecretChipId(slot));
+        async function refreshRequestSecretSlotStatus(prefix, slot) {
+          const chipNode = el(requestSecretChipId(prefix, slot));
           if (chipNode) chipNode.textContent = 'Checking...';
           const out = await apiCall(ADMIN_ROOT + '/http-secrets/' + encodeURIComponent(slot), 'GET');
           const exists = !!out?.data?.secret_set;
-          setRequestSecretSlotExists(slot, exists);
+          setRequestSecretSlotExists(prefix, slot, exists);
         }
         function showRequestSecretReplaceModal(slot) {
           const modal = el('request-secret-replace-modal');
@@ -367,8 +397,8 @@
             if (!modal.open) modal.showModal();
           });
         }
-        async function saveRequestSecretSlot(slot) {
-          const input = el(requestSecretInputId(slot));
+        async function saveRequestSecretSlot(prefix, slot) {
+          const input = el(requestSecretInputId(prefix, slot));
           const rawValue = String(input?.value || '');
           if (!rawValue.trim()) throw new Error('Secret value is required.');
           if (requestSecretSlotState[slot]?.exists) {
@@ -379,32 +409,37 @@
           if (/[\u0000-\u001f\u007f]/.test(rawValue)) throw new Error('Secret value contains disallowed control characters.');
           await apiCall(ADMIN_ROOT + '/http-secrets/' + encodeURIComponent(slot), 'PUT', { value: rawValue });
           if (input) input.value = '';
-          setRequestSecretSlotDirty(slot, false);
-          await refreshRequestSecretSlotStatus(slot);
+          setRequestSecretSlotDirty(prefix, slot, false);
+          await refreshRequestSecretSlotStatus(prefix, slot);
           showWarning(slot + ' updated.');
         }
-        async function loadRequestSecretSlots() {
+        async function loadRequestSecretSlotsForPrefix(prefix) {
           await Promise.all([
-            refreshRequestSecretSlotStatus('secret_1'),
-            refreshRequestSecretSlotStatus('secret_2'),
+            refreshRequestSecretSlotStatus(prefix, 'secret_1'),
+            refreshRequestSecretSlotStatus(prefix, 'secret_2'),
           ]);
-          setRequestSecretSlotDirty('secret_1', false);
-          setRequestSecretSlotDirty('secret_2', false);
+          setRequestSecretSlotDirty(prefix, 'secret_1', false);
+          setRequestSecretSlotDirty(prefix, 'secret_2', false);
         }
-        function bindRequestSecretSlots() {
-          const bindSlot = (slot, inputId, saveId, toggleId) => {
-            const input = el(inputId);
-            const saveBtn = el(saveId);
-            const toggle = el(toggleId);
+        async function refreshRequestSecretSlotsForForms(prefixes) {
+          const list = Array.isArray(prefixes) ? prefixes : [];
+          await Promise.all(list.map((prefix) => loadRequestSecretSlotsForPrefix(prefix)));
+        }
+        function bindRequestSecretSlotsForPrefix(prefix) {
+          const bindSlot = (slot) => {
+            const input = el(requestSecretInputId(prefix, slot));
+            const saveBtn = el(requestSecretSaveButtonId(prefix, slot));
+            const toggle = el(requestSecretToggleId(prefix, slot));
             if (input) {
               input.addEventListener('input', () => {
-                setRequestSecretSlotDirty(slot, !!String(input.value || '').trim());
+                setRequestSecretSlotDirty(prefix, slot, !!String(input.value || '').trim());
               });
             }
             if (saveBtn) {
               saveBtn.addEventListener('click', async () => {
                 try {
-                  await saveRequestSecretSlot(slot);
+                  await saveRequestSecretSlot(prefix, slot);
+                  await refreshRequestSecretSlotsForForms(['kr', 'logging-req', 'jwt-jwks']);
                 } catch (e) {
                   showWarning(String(e.message || e));
                 }
@@ -419,8 +454,8 @@
               });
             }
           };
-          bindSlot('secret_1', 'request-secret-1', 'request-secret-1-save-btn', 'request-secret-1-toggle');
-          bindSlot('secret_2', 'request-secret-2', 'request-secret-2-save-btn', 'request-secret-2-toggle');
+          bindSlot('secret_1');
+          bindSlot('secret_2');
           bindOnce('request-secret-replace-cancel-btn', () => {
             const modal = el('request-secret-replace-modal');
             if (modal?.open) modal.close();
@@ -775,14 +810,6 @@
           }
         }
         function sharedSaveLabelForTab(tabName) {
-          const tab = String(tabName || '');
-          if (tab === 'overview') return 'Save General';
-          if (tab === 'inbound-auth') return 'Save Keys & JWT settings';
-          if (tab === 'inbound-transform') return 'Save Request Transformations';
-          if (tab === 'outbound-transform') return 'Save Response Transformations';
-          if (tab === 'debug') return 'Save Logging';
-          if (tab === 'config') return 'Save YAML Configuration';
-          if (tab === 'inbound-traffic-controls') return 'Save Network Controls';
           return 'Save';
         }
         function updateSharedFooterState() {
@@ -1553,9 +1580,11 @@
               }
               debugLoadTrace();
               loadLoggingStatus();
+              refreshRequestSecretSlotsForForms(['logging-req']).catch((e) => showWarning(String(e.message || e)));
             }
             if (name === 'overview') {
               keyRotationLoad();
+              refreshRequestSecretSlotsForForms(['kr']).catch((e) => showWarning(String(e.message || e)));
             }
             if (name === 'outbound-transform') {
               transformConfigLoad();
@@ -1575,7 +1604,7 @@
             if (name === 'inbound-auth') {
               keyRotationLoad();
               keysRefresh();
-              loadRequestSecretSlots().catch((e) => showWarning(String(e.message || e)));
+              refreshRequestSecretSlotsForForms(['jwt-jwks']).catch((e) => showWarning(String(e.message || e)));
               if (el('jwt-inbound-secret-template') && !el('jwt-inbound-secret')) {
                 setHtml('jwt-inbound-secret-template', renderSecretStorage('jwt-inbound', {
                   label: 'JWT source auth secret',
@@ -2155,22 +2184,27 @@
         }
         function syncKrStrategyToRequestAuth() {
           const strategy = String(el('kr-strategy')?.value || 'none').trim();
+          const rotationFields = el('kr-rotation-fields');
           if (strategy === 'none') {
             setOutboundAuthEnabled(false);
             setRequestAuthMode('kr', 'none');
+            if (rotationFields) rotationFields.style.display = 'none';
             return;
           }
           setOutboundAuthEnabled(true);
           if (strategy === 'static') {
             setRequestAuthMode('kr', 'static');
+            if (rotationFields) rotationFields.style.display = 'none';
             return;
           }
           if (strategy === 'oauth_client_credentials') {
             applyAuthTypePreset('kr', String(el('kr-auth-type')?.value || 'none'), 'oauth_client_credentials');
             setRequestAuthMode('kr', 'oauth_client_credentials');
+            if (rotationFields) rotationFields.style.display = 'block';
             return;
           }
           setRequestAuthMode('kr', 'key_rotation');
+          if (rotationFields) rotationFields.style.display = 'block';
         }
         function updateInboundHeaderFilteringHelp(modeValue) {
           const mode = String(modeValue || 'blacklist');
@@ -2938,7 +2972,9 @@
               markDirty(name);
             });
           });
-          bindRequestSecretSlots();
+          bindRequestSecretSlotsForPrefix('kr');
+          bindRequestSecretSlotsForPrefix('jwt-jwks');
+          bindRequestSecretSlotsForPrefix('logging-req');
           el('login-btn')?.addEventListener('click', async () => {
              const adminKey = readKeyInput();
              if (!adminKey) {
