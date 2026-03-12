@@ -41,6 +41,20 @@
     .ra-err { color: #b91c1c; font-size: 13px; }
     .ra-ok { color: #166534; font-size: 13px; }
     .ra-dim { color: #64748b; font-size: 12px; }
+    .ra-secret-list { display: grid; gap: 10px; margin-top: 8px; }
+    .ra-secret-chip { border: 1px solid #cbd5e1; border-radius: 10px; padding: 10px; background: #fff; }
+    .ra-secret-chip.set { border-color: #86efac; background: #f0fdf4; }
+    .ra-secret-chip.unset { border-color: #cbd5e1; background: #f8fafc; }
+    .ra-secret-chip-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .ra-secret-chip-title { font-weight: 700; font-size: 13px; }
+    .ra-secret-chip-status { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid transparent; }
+    .ra-secret-chip-status.set { color: #166534; background: #dcfce7; border-color: #86efac; }
+    .ra-secret-chip-status.unset { color: #475569; background: #e2e8f0; border-color: #cbd5e1; }
+    .ra-secret-chip-note { font-size: 11px; color: #64748b; margin-top: 6px; }
+    .ra-link-btn { border: none; background: transparent; color: #1d4ed8; text-decoration: underline; cursor: pointer; font-size: 12px; padding: 0; }
+    .ra-secret-drawer { margin-top: 10px; border-top: 1px solid #dbe5f3; padding-top: 10px; }
+    .ra-secret-actions { margin-top: 10px; display: flex; gap: 8px; align-items: center; }
+    .ra-btn.danger { border-color: #ef4444; color: #b91c1c; background: #fff; }
   `;
 
   const style = document.createElement('style');
@@ -157,6 +171,12 @@
     }
   }
 
+  function slotLabel(slot, alias) {
+    const fallback = slot === 'secret2' ? 'Secret2' : 'Secret1';
+    const named = String(alias || '').trim();
+    return named || fallback;
+  }
+
   function App() {
     const [view, setView] = React.useState('general');
     const [status, setStatus] = React.useState({ version: '', build: '', debug: false, enrichments: [] });
@@ -181,9 +201,40 @@
     const [saving, setSaving] = React.useState(false);
     const [error, setError] = React.useState('');
     const [ok, setOk] = React.useState('');
+    const [secretStatus, setSecretStatus] = React.useState({ secret1: false, secret2: false });
+    const [secretNames, setSecretNames] = React.useState({ secret1: '', secret2: '' });
+    const [openSecretSlot, setOpenSecretSlot] = React.useState(null);
+    const [secretDraftValue, setSecretDraftValue] = React.useState('');
+    const [secretDraftName, setSecretDraftName] = React.useState('');
+    const [secretDraftShow, setSecretDraftShow] = React.useState(false);
+    const [secretBusy, setSecretBusy] = React.useState(false);
+    const availableSecretRefs = ['secret1', 'secret2'].filter((slot) => !!secretStatus[slot]);
+
+    React.useEffect(() => {
+      if (strategy !== 'static') return;
+      if (availableSecretRefs.includes(authSecretRef)) return;
+      setAuthSecretRef(availableSecretRefs[0] || '');
+    }, [strategy, authSecretRef, availableSecretRefs.join('|')]);
 
     React.useEffect(() => {
       if (!getToken()) return clearTokenAndExit();
+      async function loadTargetSecretState() {
+        const [namePayload, s1, s2] = await Promise.all([
+          apiJson('/http-auth/target/secret-names', 'GET'),
+          apiJson('/http-auth/target/secrets/secret1', 'GET'),
+          apiJson('/http-auth/target/secrets/secret2', 'GET'),
+        ]);
+        const names = namePayload?.data?.secret_names || {};
+        setSecretNames({
+          secret1: String(names.secret1 || ''),
+          secret2: String(names.secret2 || ''),
+        });
+        setSecretStatus({
+          secret1: !!s1?.data?.secret_set,
+          secret2: !!s2?.data?.secret_set,
+        });
+      }
+
       (async () => {
         try {
           const [versionRes, debugRes, headersRes, cfgYaml, keyRotation] = await Promise.all([
@@ -233,11 +284,85 @@
           setExpiresAtPath(d.expires_at_path == null ? '' : String(d.expires_at_path));
           setRefreshSkew(String(Number(d.refresh_skew_seconds || 0)));
           setRetry401(!!d.retry_once_on_401);
+          await loadTargetSecretState();
         } catch (err) {
           setError(String(err && err.message || err));
         }
       })();
     }, []);
+
+    function openSecretEditor(slot) {
+      setOpenSecretSlot(slot);
+      setSecretDraftValue('');
+      setSecretDraftShow(false);
+      setSecretDraftName(String(secretNames?.[slot] || ''));
+      setOk('');
+      setError('');
+    }
+
+    function closeSecretEditor() {
+      setOpenSecretSlot(null);
+      setSecretDraftValue('');
+      setSecretDraftName('');
+      setSecretDraftShow(false);
+    }
+
+    async function refreshTargetSecrets() {
+      const [namePayload, s1, s2] = await Promise.all([
+        apiJson('/http-auth/target/secret-names', 'GET'),
+        apiJson('/http-auth/target/secrets/secret1', 'GET'),
+        apiJson('/http-auth/target/secrets/secret2', 'GET'),
+      ]);
+      const names = namePayload?.data?.secret_names || {};
+      setSecretNames({
+        secret1: String(names.secret1 || ''),
+        secret2: String(names.secret2 || ''),
+      });
+      setSecretStatus({
+        secret1: !!s1?.data?.secret_set,
+        secret2: !!s2?.data?.secret_set,
+      });
+    }
+
+    async function saveSecretSlot(slot) {
+      setSecretBusy(true);
+      setOk('');
+      setError('');
+      try {
+        const payload = {
+          secret1_name: slot === 'secret1' ? String(secretDraftName || '') : undefined,
+          secret2_name: slot === 'secret2' ? String(secretDraftName || '') : undefined,
+        };
+        await apiJson('/http-auth/target/secret-names', 'PUT', payload);
+        const val = String(secretDraftValue || '').trim();
+        if (val) {
+          await apiJson('/http-auth/target/secrets/' + encodeURIComponent(slot), 'PUT', { value: val });
+        }
+        await refreshTargetSecrets();
+        setOk(val ? 'Secret saved.' : 'Secret name saved.');
+        closeSecretEditor();
+      } catch (err) {
+        setError(String(err && err.message || err));
+      } finally {
+        setSecretBusy(false);
+      }
+    }
+
+    async function removeSecretSlot(slot) {
+      setSecretBusy(true);
+      setOk('');
+      setError('');
+      try {
+        await apiJson('/http-auth/target/secrets/' + encodeURIComponent(slot), 'DELETE');
+        await refreshTargetSecrets();
+        setOk('Secret removed.');
+        closeSecretEditor();
+      } catch (err) {
+        setError(String(err && err.message || err));
+      } finally {
+        setSecretBusy(false);
+      }
+    }
 
     function renderOverviewStatus() {
       return e('div', { className: 'ra-grid' },
@@ -276,10 +401,12 @@
         if (strategy === 'none') {
           request.authorization = { type: 'none' };
         } else if (strategy === 'static') {
+          const chosenRef = String(authSecretRef || '').trim();
+          if (!chosenRef) throw new Error('Set at least one secret slot, then select it for static auth.');
           request.authorization = {
             type: 'static',
             header_name: String(authHeaderName || 'Authorization').trim() || 'Authorization',
-            secret_ref: String(authSecretRef || 'secret1').trim() || 'secret1',
+            secret_ref: chosenRef,
           };
         } else {
           request.authorization = { type: String(authType || 'oauth_client_credentials') };
@@ -330,6 +457,76 @@
           e('option', { value: 'advanced' }, 'Advanced (OAuth/Rotation)')
         ),
         strategy !== 'none' ? e('div', {},
+          e('p', { style: { margin: '12px 0 6px', fontWeight: 700 } }, 'Authentication secrets'),
+          e('div', { className: 'ra-secret-list' },
+            ['secret1', 'secret2'].map((slot) => {
+              const isSet = !!secretStatus[slot];
+              const isOpen = openSecretSlot === slot;
+              return e('div', {
+                key: slot,
+                className: 'ra-secret-chip ' + (isSet ? 'set' : 'unset'),
+              },
+              e('div', { className: 'ra-secret-chip-head' },
+                e('div', { className: 'ra-secret-chip-title' }, slotLabel(slot, secretNames[slot])),
+                e('div', { style: { display: 'flex', alignItems: 'center', gap: '8px' } },
+                  e('span', { className: 'ra-secret-chip-status ' + (isSet ? 'set' : 'unset') }, isSet ? 'Set' : 'Empty'),
+                  e('button', {
+                    type: 'button',
+                    className: 'ra-link-btn',
+                    onClick: () => isOpen ? closeSecretEditor() : openSecretEditor(slot),
+                  }, isOpen ? 'Close' : (isSet ? 'Update' : 'Add'))
+                )
+              ),
+              e('div', { className: 'ra-secret-chip-note' }, 'Access this secret in configuration using ${' + slot + '}'),
+              isOpen ? e('div', { className: 'ra-secret-drawer' },
+                e('label', { className: 'ra-field', htmlFor: 'ra-secret-name-' + slot }, 'Friendly name'),
+                e('input', {
+                  id: 'ra-secret-name-' + slot,
+                  className: 'ra-input',
+                  value: secretDraftName,
+                  onChange: (ev) => setSecretDraftName(ev.target.value),
+                  placeholder: slot === 'secret1' ? 'e.g. Production API token' : 'e.g. Backup API token',
+                }),
+                e('label', { className: 'ra-field', htmlFor: 'ra-secret-value-' + slot }, 'Secret value'),
+                e('div', { style: { display: 'flex', gap: '8px', alignItems: 'center' } },
+                  e('input', {
+                    id: 'ra-secret-value-' + slot,
+                    className: 'ra-input',
+                    type: secretDraftShow ? 'text' : 'password',
+                    value: secretDraftValue,
+                    onChange: (ev) => setSecretDraftValue(ev.target.value),
+                    placeholder: isSet ? 'Leave blank to keep current secret' : 'Enter secret',
+                  }),
+                  e('button', {
+                    type: 'button',
+                    className: 'ra-btn',
+                    onClick: () => setSecretDraftShow(!secretDraftShow),
+                  }, secretDraftShow ? 'Hide' : 'Show')
+                ),
+                e('div', { className: 'ra-dim', style: { marginTop: '6px' } }, 'Secrets are write-only and cannot be read back.'),
+                e('div', { className: 'ra-secret-actions' },
+                  e('button', {
+                    type: 'button',
+                    className: 'ra-btn primary',
+                    onClick: () => saveSecretSlot(slot),
+                    disabled: secretBusy,
+                  }, secretBusy ? 'Saving...' : 'Save Secret'),
+                  isSet ? e('button', {
+                    type: 'button',
+                    className: 'ra-btn danger',
+                    onClick: () => removeSecretSlot(slot),
+                    disabled: secretBusy,
+                  }, 'Remove') : null,
+                  e('button', {
+                    type: 'button',
+                    className: 'ra-link-btn',
+                    onClick: closeSecretEditor,
+                  }, 'Cancel')
+                )
+              ) : null
+              );
+            })
+          ),
           e('p', { style: { margin: '12px 0 6px', fontWeight: 700 } }, 'Token Request'),
           e('div', { className: 'ra-row' },
             e('label', { className: 'ra-field', htmlFor: 'ra-req-method' }, 'Method'),
@@ -359,8 +556,9 @@
             e('input', { id: 'ra-auth-header-name', className: 'ra-input', value: authHeaderName, onChange: (ev) => setAuthHeaderName(ev.target.value), placeholder: 'Authorization' }),
             e('label', { className: 'ra-field', htmlFor: 'ra-auth-secret-ref' }, 'Select secret slot'),
             e('select', { id: 'ra-auth-secret-ref', className: 'ra-select', value: authSecretRef, onChange: (ev) => setAuthSecretRef(ev.target.value) },
-              e('option', { value: 'secret1' }, 'secret1'),
-              e('option', { value: 'secret2' }, 'secret2')
+              availableSecretRefs.length
+                ? availableSecretRefs.map((slot) => e('option', { key: slot, value: slot }, slotLabel(slot, secretNames[slot])))
+                : e('option', { value: '' }, 'No saved secret slots')
             )
           ) : null,
           strategy === 'advanced' ? e('div', {},
