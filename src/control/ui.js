@@ -4,6 +4,9 @@ import adminLoginOptionsTemplate from "./ui/templates/admin_login_options.html";
 import adminPageTemplate from "./ui/templates/admin_page.html";
 import liveLogPageTemplate from "./ui/templates/live_log_page.html";
 import reactAdminPageTemplate from "./ui/templates/react_admin_page.html";
+import reactAdminViewGeneralTemplate from "./ui/templates/react_admin_view_general.html";
+import reactAdminViewConfigTemplate from "./ui/templates/react_admin_view_config.html";
+import reactAdminViewKeysTemplate from "./ui/templates/react_admin_view_keys.html";
 import reactRuntimeTemplate from "./ui/templates/react_runtime.html";
 import reactDomRuntimeTemplate from "./ui/templates/react_dom_runtime.html";
 import secretFieldTemplate from "./ui/templates/secret_field.html";
@@ -21,6 +24,9 @@ const templates = {
   admin_page: adminPageTemplate,
   live_log_page: liveLogPageTemplate,
   react_admin_page: reactAdminPageTemplate,
+  react_admin_view_general: reactAdminViewGeneralTemplate,
+  react_admin_view_config: reactAdminViewConfigTemplate,
+  react_admin_view_keys: reactAdminViewKeysTemplate,
   react_runtime: reactRuntimeTemplate,
   react_dom_runtime: reactDomRuntimeTemplate,
   init_admin_login_script: initAdminLoginScriptTemplate,
@@ -130,6 +136,9 @@ export function renderReactAdminPage({ adminApiRoot = "/admin", loginRoot = "/_l
     favicon_data_url: FAVICON_DATA_URL,
     admin_api_root: String(adminApiRoot || "/admin"),
     login_root: String(loginRoot || "/_login"),
+    react_admin_view_general_js: templates.react_admin_view_general || "",
+    react_admin_view_config_js: templates.react_admin_view_config || "",
+    react_admin_view_keys_js: templates.react_admin_view_keys || "",
   });
   return new Response(
     htmlPage("", bodyHtml),
