@@ -1,0 +1,199 @@
+<div id="react-admin-root"></div>
+<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script>
+(function () {
+  const API_ROOT = '{{admin_api_root}}';
+  const LOGIN_ROOT = '{{login_root}}';
+  const TOKEN_STORAGE = 'apiproxy_admin_access_token_v1';
+  const e = React.createElement;
+
+  const styles = `
+    :root {
+      --ra-bg: #f4f7fb;
+      --ra-surface: #ffffff;
+      --ra-border: #dbe5f3;
+      --ra-text: #0f172a;
+      --ra-subtext: #475569;
+      --ra-primary: #0b5fff;
+      --ra-primary-2: #e8f0ff;
+    }
+    body { margin: 0; background: var(--ra-bg); color: var(--ra-text); font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif; }
+    .ra-shell { min-height: 100vh; display: grid; grid-template-columns: 240px 1fr; }
+    .ra-side { background: linear-gradient(180deg, #0f172a 0%, #111827 100%); color: #e2e8f0; padding: 24px 18px; }
+    .ra-brand { font-size: 20px; font-weight: 700; line-height: 1.2; margin-bottom: 18px; }
+    .ra-nav button { width: 100%; text-align: left; background: transparent; border: 1px solid transparent; color: #cbd5e1; border-radius: 10px; padding: 10px 12px; margin-bottom: 8px; cursor: pointer; }
+    .ra-nav button.active { background: rgba(148, 163, 184, 0.16); border-color: rgba(148, 163, 184, 0.25); color: #fff; }
+    .ra-main { padding: 24px; }
+    .ra-card { background: var(--ra-surface); border: 1px solid var(--ra-border); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
+    .ra-title { font-size: 24px; font-weight: 700; margin: 0 0 8px; }
+    .ra-sub { color: var(--ra-subtext); font-size: 14px; margin: 0 0 12px; }
+    .ra-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
+    .ra-pill { display: inline-block; padding: 4px 10px; border-radius: 999px; background: var(--ra-primary-2); color: var(--ra-primary); font-size: 12px; font-weight: 600; }
+    .ra-btn { border: 1px solid var(--ra-border); border-radius: 10px; background: #fff; color: var(--ra-text); padding: 8px 12px; cursor: pointer; }
+    .ra-btn.primary { background: var(--ra-primary); color: #fff; border-color: var(--ra-primary); }
+    .ra-err { color: #b91c1c; font-size: 13px; margin-top: 8px; }
+    textarea.ra-textarea { width: 100%; min-height: 320px; border: 1px solid var(--ra-border); border-radius: 10px; padding: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+  `;
+
+  const style = document.createElement('style');
+  style.textContent = styles;
+  document.head.appendChild(style);
+
+  function getToken() {
+    try { return sessionStorage.getItem(TOKEN_STORAGE) || ''; } catch { return ''; }
+  }
+
+  function clearTokenAndExit() {
+    try { sessionStorage.removeItem(TOKEN_STORAGE); } catch {}
+    window.location.href = LOGIN_ROOT;
+  }
+
+  async function api(path, method = 'GET', body = null) {
+    const token = getToken();
+    if (!token) {
+      clearTokenAndExit();
+      return null;
+    }
+    const headers = { 'authorization': 'Bearer ' + token };
+    if (body !== null) headers['content-type'] = 'application/json';
+    const res = await fetch(API_ROOT + path, {
+      method,
+      headers,
+      body: body === null ? undefined : JSON.stringify(body),
+    });
+    if (res.status === 401) {
+      clearTokenAndExit();
+      return null;
+    }
+    const text = await res.text();
+    let payload = null;
+    try { payload = JSON.parse(text); } catch {}
+    if (!res.ok) {
+      throw new Error((payload && payload.error && payload.error.message) || 'Request failed');
+    }
+    return payload;
+  }
+
+  function App() {
+    const [view, setView] = React.useState('general');
+    const [status, setStatus] = React.useState(null);
+    const [keys, setKeys] = React.useState(null);
+    const [yaml, setYaml] = React.useState('');
+    const [saving, setSaving] = React.useState(false);
+    const [error, setError] = React.useState('');
+
+    React.useEffect(() => {
+      if (!getToken()) {
+        clearTokenAndExit();
+        return;
+      }
+      (async () => {
+        try {
+          const [ver, keyState, cfg] = await Promise.all([
+            api('/version'),
+            api('/keys'),
+            api('/config'),
+          ]);
+          if (!ver || !keyState || !cfg) return;
+          setStatus(ver.data || null);
+          setKeys(keyState.data || null);
+          setYaml(String(cfg.data && cfg.data.yaml || ''));
+        } catch (err) {
+          setError(String(err && err.message || err));
+        }
+      })();
+    }, []);
+
+    async function saveYaml() {
+      setSaving(true);
+      setError('');
+      try {
+        await fetch(API_ROOT + '/config', {
+          method: 'PUT',
+          headers: {
+            'authorization': 'Bearer ' + getToken(),
+            'content-type': 'application/x-yaml',
+          },
+          body: yaml,
+        }).then(async (res) => {
+          if (res.status === 401) {
+            clearTokenAndExit();
+            return;
+          }
+          if (!res.ok) {
+            const text = await res.text();
+            let payload = null;
+            try { payload = JSON.parse(text); } catch {}
+            throw new Error((payload && payload.error && payload.error.message) || 'Save failed');
+          }
+        });
+      } catch (err) {
+        setError(String(err && err.message || err));
+      } finally {
+        setSaving(false);
+      }
+    }
+
+    const nav = e('div', { className: 'ra-nav' },
+      e('button', { className: view === 'general' ? 'active' : '', onClick: () => setView('general') }, 'General'),
+      e('button', { className: view === 'config' ? 'active' : '', onClick: () => setView('config') }, 'YAML Configuration'),
+      e('button', { className: view === 'keys' ? 'active' : '', onClick: () => setView('keys') }, 'API Keys'),
+      e('button', { onClick: clearTokenAndExit }, 'Logout')
+    );
+
+    const generalView = e('div', {},
+      e('h1', { className: 'ra-title' }, 'SimpleProxy Admin'),
+      e('p', { className: 'ra-sub' }, 'React preview UI at /_admin. Existing /admin remains unchanged.'),
+      e('div', { className: 'ra-grid' },
+        e('div', { className: 'ra-card' },
+          e('div', { className: 'ra-pill' }, 'Version'),
+          e('p', null, status && status.version ? status.version : '...')
+        ),
+        e('div', { className: 'ra-card' },
+          e('div', { className: 'ra-pill' }, 'Build Timestamp'),
+          e('p', null, status && status.build_timestamp ? status.build_timestamp : 'n/a')
+        )
+      )
+    );
+
+    const configView = e('div', {},
+      e('h1', { className: 'ra-title' }, 'YAML Configuration'),
+      e('p', { className: 'ra-sub' }, 'Uses the same /admin/config API as current UI.'),
+      e('div', { className: 'ra-card' },
+        e('textarea', {
+          className: 'ra-textarea',
+          value: yaml,
+          onChange: (ev) => setYaml(ev.target.value),
+        }),
+        e('div', { style: { marginTop: '10px' } },
+          e('button', { className: 'ra-btn primary', onClick: saveYaml, disabled: saving }, saving ? 'Saving...' : 'Save')
+        )
+      )
+    );
+
+    const keysView = e('div', {},
+      e('h1', { className: 'ra-title' }, 'API Keys'),
+      e('p', { className: 'ra-sub' }, 'Status snapshot from /admin/keys.'),
+      e('div', { className: 'ra-card' },
+        e('pre', { style: { margin: 0, whiteSpace: 'pre-wrap', fontSize: '12px' } }, JSON.stringify(keys || {}, null, 2))
+      )
+    );
+
+    return e('div', { className: 'ra-shell' },
+      e('aside', { className: 'ra-side' },
+        e('div', { className: 'ra-brand' }, 'SimpleProxy', e('br'), 'Admin React'),
+        nav
+      ),
+      e('main', { className: 'ra-main' },
+        error ? e('div', { className: 'ra-card' }, e('div', { className: 'ra-err' }, error)) : null,
+        view === 'general' ? generalView : null,
+        view === 'config' ? configView : null,
+        view === 'keys' ? keysView : null
+      )
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById('react-admin-root')).render(e(App));
+})();
+</script>

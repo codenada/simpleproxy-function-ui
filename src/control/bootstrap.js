@@ -264,29 +264,31 @@ function createBootstrapApi({
     );
   }
 
-  function renderLoginOnlyPage(config, env) {
+  function renderLoginOnlyPage(config, env, loginScriptOptions = null) {
     const docsUrl = getDocsBaseUrl(env);
     const proxyName = String(config?.proxyName || "").trim();
+    const scriptOptions = loginScriptOptions || {};
     return new Response(
       htmlPage(
         "API Transform Proxy",
         `${renderOnboardingHeader(proxyName)}
        ${renderAdminLoginOptions(docsUrl)}
-       ${renderInitAdminLoginScript(adminRoot)}`
+       ${renderInitAdminLoginScript(adminRoot, scriptOptions)}`
       ),
       { headers: { "content-type": "text/html; charset=utf-8" } }
     );
   }
 
-  async function handleInitPage(env, request) {
+  async function handleInitPage(env, request, loginScriptOptions = null) {
     ensureKvBinding(env);
     const { createdProxy, createdAdmin } = await bootstrapMissingKeys(env);
     if (!createdProxy || !createdAdmin) {
       const config = await loadConfigV1(env);
-      return renderLoginOnlyPage(config, env);
+      return renderLoginOnlyPage(config, env, loginScriptOptions);
     }
     await dataPutValue(env, kvBootstrapKeysShownOnce, "1");
     const docsUrl = getDocsBaseUrl(env);
+    const scriptOptions = loginScriptOptions || {};
 
     return new Response(
       htmlPage(
@@ -315,13 +317,17 @@ function createBootstrapApi({
        <h2 style="margin:16px 0 10px 0;">Open Admin Console</h2>
        ${renderAdminLoginOptions(docsUrl)}
        ${renderSecretFieldScript()}
-       ${renderInitAdminLoginScript(adminRoot)}`
+       ${renderInitAdminLoginScript(adminRoot, scriptOptions)}`
       ),
       { headers: { "content-type": "text/html; charset=utf-8" } }
     );
   }
 
   async function handleStatusPage(env, request) {
+    return handleStatusPageWithLoginOptions(env, request, null);
+  }
+
+  async function handleStatusPageWithLoginOptions(env, request, loginScriptOptions = null) {
     ensureKvBinding(env);
     const rateLimitResponse = enforceLoginPageRateLimit(request);
     if (rateLimitResponse) return rateLimitResponse;
@@ -339,9 +345,9 @@ function createBootstrapApi({
     const adminInitialized = !!adminKey;
     const isTrueFirstRun = !shownOnce && !proxyInitialized && !adminInitialized;
     if (isTrueFirstRun) {
-      return handleInitPage(env, request);
+      return handleInitPage(env, request, loginScriptOptions);
     }
-    return renderLoginOnlyPage(config, env);
+    return renderLoginOnlyPage(config, env, loginScriptOptions);
   }
 
   async function handleBootstrapPost(env) {
@@ -371,6 +377,7 @@ function createBootstrapApi({
     bootstrapMissingKeys,
     handleInitPage,
     handleStatusPage,
+    handleStatusPageWithLoginOptions,
     handleBootstrapPost,
     handleBrowserVerifyPost,
   };

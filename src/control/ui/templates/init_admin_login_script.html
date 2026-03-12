@@ -8,9 +8,14 @@ async function initAdminLogin() {
     return;
   }
   try {
+    const headers = { 'X-Admin-Key': key };
+    const uiModeHeaderValue = '{{ui_mode_header}}';
+    if (uiModeHeaderValue) {
+      headers['X-Admin-Ui-Mode'] = uiModeHeaderValue;
+    }
     const res = await fetch('{{admin_root}}/access-token', {
       method: 'POST',
-      headers: { 'X-Admin-Key': key },
+      headers,
     });
     const text = await res.text();
     let payload = null;
@@ -20,7 +25,8 @@ async function initAdminLogin() {
       return;
     }
     try { sessionStorage.setItem('apiproxy_admin_access_token_v1', payload.data.access_token); } catch {}
-    const nextUrl = String(payload?.data?.admin_url || '').trim();
+    const configuredNextUrl = String('{{post_login_url}}' || '').trim();
+    const nextUrl = configuredNextUrl || String(payload?.data?.admin_url || '').trim();
     window.location.href = nextUrl || '{{admin_root}}';
   } catch {
     if (msg) msg.textContent = 'Login failed. Try again.';

@@ -3,6 +3,7 @@ import onboardingHeaderTemplate from "./ui/templates/onboarding_header.html";
 import adminLoginOptionsTemplate from "./ui/templates/admin_login_options.html";
 import adminPageTemplate from "./ui/templates/admin_page.html";
 import liveLogPageTemplate from "./ui/templates/live_log_page.html";
+import reactAdminPageTemplate from "./ui/templates/react_admin_page.html";
 import secretFieldTemplate from "./ui/templates/secret_field.html";
 import initAdminLoginScriptTemplate from "./ui/templates/init_admin_login_script.html";
 import secretFieldScriptTemplate from "./ui/templates/secret_field_script.html";
@@ -17,6 +18,7 @@ const templates = {
   admin_login_options: adminLoginOptionsTemplate,
   admin_page: adminPageTemplate,
   live_log_page: liveLogPageTemplate,
+  react_admin_page: reactAdminPageTemplate,
   init_admin_login_script: initAdminLoginScriptTemplate,
   secret_field: secretFieldTemplate,
   secret_field_script: secretFieldScriptTemplate,
@@ -58,9 +60,13 @@ export function renderAdminLoginOptions(docsUrl) {
   });
 }
 
-export function renderInitAdminLoginScript(adminRoot) {
+export function renderInitAdminLoginScript(adminRoot, options = {}) {
+  const postLoginUrl = String(options?.postLoginUrl || "").trim();
+  const uiModeHeader = String(options?.uiModeHeader || "").trim();
   return renderTemplate("init_admin_login_script", {
     admin_root: String(adminRoot || ""),
+    post_login_url: postLoginUrl,
+    ui_mode_header: uiModeHeader,
   });
 }
 
@@ -108,6 +114,18 @@ export function renderLiveLogPage(adminRoot = "/admin") {
     favicon_data_url: FAVICON_DATA_URL,
     admin_root: String(adminRoot || "/admin"),
     live_log_page_script_html: liveLogPageScriptHtml,
+  });
+  return new Response(
+    htmlPage("", bodyHtml),
+    { headers: { "content-type": "text/html; charset=utf-8" } }
+  );
+}
+
+export function renderReactAdminPage({ adminApiRoot = "/admin", loginRoot = "/_login" } = {}) {
+  const bodyHtml = renderTemplate("react_admin_page", {
+    favicon_data_url: FAVICON_DATA_URL,
+    admin_api_root: String(adminApiRoot || "/admin"),
+    login_root: String(loginRoot || "/_login"),
   });
   return new Response(
     htmlPage("", bodyHtml),

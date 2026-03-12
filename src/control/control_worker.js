@@ -43,6 +43,8 @@ import { createControlEnrichedHeadersHandlers } from "./handlers/enriched_header
 import {
   CONTROL_RESERVED_ROOT,
   CONTROL_ADMIN_ROOT,
+  CONTROL_REACT_ADMIN_ROOT,
+  CONTROL_REACT_LOGIN_ROOT,
   readControlEnv,
 } from "./control_routes.js";
 import { createPlatformAdapters } from "../platform/index.js";
@@ -95,12 +97,16 @@ import {
 
 const RESERVED_ROOT = CONTROL_RESERVED_ROOT;
 const ADMIN_ROOT = CONTROL_ADMIN_ROOT;
+const REACT_LOGIN_ROOT = CONTROL_REACT_LOGIN_ROOT;
+const REACT_ADMIN_ROOT = CONTROL_REACT_ADMIN_ROOT;
 
 /**
  * Control/admin worker.
  *
  * Endpoints:
  * - GET /                        : onboarding/login/status page
+ * - GET /_login                  : onboarding/login/status page for React admin
+ * - GET /_admin                  : React admin shell
  * - POST /                       : bootstrap action
  * - POST /_apiproxy/keys/admin/rotate
  * - POST /admin/browser-verify
@@ -123,7 +129,11 @@ const PLATFORM = createPlatformAdapters();
 
 function createWorker() {
   function shouldApplyAdminIpFilter(pathname) {
-    return pathname === "/" || pathname === RESERVED_ROOT || pathname.startsWith(`${ADMIN_ROOT}`);
+    return pathname === "/"
+      || pathname === RESERVED_ROOT
+      || pathname === REACT_LOGIN_ROOT
+      || pathname === REACT_ADMIN_ROOT
+      || pathname.startsWith(`${ADMIN_ROOT}`);
   }
 
   function isIpAllowed(request) {

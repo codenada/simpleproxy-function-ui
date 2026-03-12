@@ -262,6 +262,40 @@ test("Control admin page requires auth and loads from tokenized admin URL", SERI
   assert.match(html, /Admin Console/);
 });
 
+test("React login path reuses onboarding + first-run flow", SERIAL, async () => {
+  const env = createEnv({}, {
+    config_json_v1: JSON.stringify(minimalValidConfigPatch()),
+  });
+  const response = await callSpecificWorker(controlWorker, env, {
+    method: "GET",
+    path: "/_login",
+    headers: {
+      cookie: "apiproxy_browser_verified=1",
+    },
+  });
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /Get Started/i);
+  assert.match(html, /configuredNextUrl/i);
+  assert.match(html, /X-Admin-Ui-Mode/i);
+  assert.match(html, /\/_admin/i);
+});
+
+test("React admin shell is available at /_admin", SERIAL, async () => {
+  const env = createEnv({}, {
+    config_json_v1: JSON.stringify(minimalValidConfigPatch()),
+  });
+  const response = await callSpecificWorker(controlWorker, env, {
+    method: "GET",
+    path: "/_admin",
+  });
+  assert.equal(response.status, 200);
+  const html = await response.text();
+  assert.match(html, /SimpleProxy Admin/i);
+  assert.match(html, /react-admin-root/i);
+  assert.match(html, /ReactDOM\.createRoot/i);
+});
+
 test("Control worker keeps /_apiproxy bootstrap endpoints disabled", SERIAL, async () => {
   const env = createEnv({}, {
     config_json_v1: JSON.stringify(minimalValidConfigPatch()),

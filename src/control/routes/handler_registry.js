@@ -2,12 +2,18 @@ function applyBootstrapHandlers(handlers, deps) {
   handlers.handleStatusPage = (env, request) => deps.bootstrapApi.handleStatusPage(env, request);
   handlers.handleBootstrapPost = (env) => deps.bootstrapApi.handleBootstrapPost(env);
   handlers.handleBrowserVerifyPost = (request, env) => deps.bootstrapApi.handleBrowserVerifyPost(request, env);
+  handlers.handleReactLoginPage = (env, request) =>
+    deps.bootstrapApi.handleStatusPageWithLoginOptions(env, request, {
+      postLoginUrl: "/_admin",
+      uiModeHeader: "react",
+    });
 }
 
 function applyAdminShellHandlers(handlers, deps) {
   handlers.handleRotateByKind = deps.handleRotateByKind;
   handlers.handleAdminPage = () => deps.adminUiApi.handleAdminPage();
   handlers.handleLiveLogPage = () => deps.adminUiApi.handleLiveLogPage();
+  handlers.handleReactAdminPage = () => deps.adminUiApi.handleReactAdminPage("/_login");
   handlers.handleAdminSwaggerPage = (request) => deps.swaggerApi.handleAdminSwaggerPage(request);
   handlers.handleAdminSwaggerSpec = (request) => deps.swaggerApi.handleAdminSwaggerSpec(request);
   handlers.handleAdminAccessTokenPost = deps.handleAdminAccessTokenPost;

@@ -1,6 +1,8 @@
 const CONTROL_PUBLIC_ROOT = "/";
 const CONTROL_RESERVED_ROOT = "/_apiproxy";
 const CONTROL_ADMIN_ROOT = "/admin";
+const CONTROL_REACT_LOGIN_ROOT = "/_login";
+const CONTROL_REACT_ADMIN_ROOT = "/_admin";
 function readControlEnv(env) {
   return {
     allowedHosts: String(env?.ALLOWED_HOSTS || "").trim(),
@@ -37,6 +39,8 @@ export {
   CONTROL_PUBLIC_ROOT,
   CONTROL_RESERVED_ROOT,
   CONTROL_ADMIN_ROOT,
+  CONTROL_REACT_LOGIN_ROOT,
+  CONTROL_REACT_ADMIN_ROOT,
   readControlEnv,
   CONTROL_ADMIN_PATHS,
 };

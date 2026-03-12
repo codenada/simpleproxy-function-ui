@@ -1,6 +1,13 @@
-import { CONTROL_ADMIN_PATHS } from "../control_routes.js";
+import { CONTROL_ADMIN_PATHS, CONTROL_REACT_ADMIN_ROOT, CONTROL_REACT_LOGIN_ROOT } from "../control_routes.js";
 
 async function dispatchAdminRoute({ normalizedPath, request, env, adminRoot, handlers, auth }) {
+  if (normalizedPath === CONTROL_REACT_LOGIN_ROOT && request.method === "GET") {
+    return handlers.handleReactLoginPage(env, request);
+  }
+  if (normalizedPath === CONTROL_REACT_ADMIN_ROOT && request.method === "GET") {
+    return handlers.handleReactAdminPage();
+  }
+
   if (normalizedPath === `${adminRoot}${CONTROL_ADMIN_PATHS.BROWSER_VERIFY}` && request.method === "POST") {
     return handlers.handleBrowserVerifyPost(request, env);
   }

@@ -1,4 +1,4 @@
-import { renderAdminPage, renderLiveLogPage } from "./ui.js";
+import { renderAdminPage, renderLiveLogPage, renderReactAdminPage } from "./ui.js";
 
 function createAdminUiApi({ adminRoot }) {
   function handleAdminPage() {
@@ -9,9 +9,14 @@ function createAdminUiApi({ adminRoot }) {
     return renderLiveLogPage(adminRoot);
   }
 
+  function handleReactAdminPage(loginRoot = "/_login") {
+    return renderReactAdminPage({ adminApiRoot: adminRoot, loginRoot });
+  }
+
   return {
     handleAdminPage,
     handleLiveLogPage,
+    handleReactAdminPage,
   };
 }
 
