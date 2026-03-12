@@ -291,7 +291,7 @@ test("React admin shell is available at /_admin", SERIAL, async () => {
   });
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /SimpleProxy Admin/i);
+  assert.match(html, /React migration of legacy General tab/i);
   assert.match(html, /react-admin-root/i);
   assert.match(html, /ReactDOM\.createRoot/i);
   assert.match(html, /\/_admin\/assets\/react\.js/i);

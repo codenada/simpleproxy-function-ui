@@ -15,8 +15,7 @@
       --ra-border: #dbe5f3;
       --ra-text: #0f172a;
       --ra-subtext: #475569;
-      --ra-primary: #0b5fff;
-      --ra-primary-2: #e8f0ff;
+      --ra-primary: #2563eb;
     }
     body { margin: 0; background: var(--ra-bg); color: var(--ra-text); font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, sans-serif; }
     .ra-shell { min-height: 100vh; display: grid; grid-template-columns: 260px 1fr; }
@@ -29,16 +28,19 @@
     .ra-card { background: var(--ra-surface); border: 1px solid var(--ra-border); border-radius: 12px; padding: 16px; margin-bottom: 14px; }
     .ra-title { font-size: 24px; font-weight: 700; margin: 0 0 8px; }
     .ra-sub { color: var(--ra-subtext); font-size: 14px; margin: 0 0 12px; }
-    .ra-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
-    .ra-pill { display: inline-block; padding: 4px 10px; border-radius: 999px; background: var(--ra-primary-2); color: var(--ra-primary); font-size: 12px; font-weight: 600; }
-    .ra-btn { border: 1px solid var(--ra-border); border-radius: 10px; background: #fff; color: var(--ra-text); padding: 8px 12px; cursor: pointer; }
+    .ra-field { display: block; margin: 10px 0 4px; font-weight: 600; font-size: 13px; }
+    .ra-input, .ra-select, .ra-textarea { width: 100%; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 8px; box-sizing: border-box; background: #fff; color: #0f172a; }
+    .ra-input, .ra-select { max-width: 640px; }
+    .ra-textarea { min-height: 110px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .ra-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+    .ra-pill { display: inline-block; padding: 3px 8px; border-radius: 999px; background: #e8f0ff; color: #1d4ed8; font-size: 12px; font-weight: 600; margin-bottom: 6px; }
+    .ra-btn { border: 1px solid #cbd5e1; border-radius: 10px; background: #fff; color: #0f172a; padding: 8px 12px; cursor: pointer; }
     .ra-btn.primary { background: var(--ra-primary); color: #fff; border-color: var(--ra-primary); }
-    .ra-err { color: #b91c1c; font-size: 13px; margin-top: 8px; }
-    textarea.ra-textarea { width: 100%; min-height: 320px; border: 1px solid var(--ra-border); border-radius: 10px; padding: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
-    .ra-topbar { display:flex; justify-content:space-between; gap:8px; margin-bottom: 12px; align-items:center; }
-    .ra-iframe-wrap { height: calc(100vh - 170px); min-height: 620px; border: 1px solid var(--ra-border); border-radius: 12px; overflow: hidden; background:#fff; }
-    .ra-iframe { width: 100%; height: 100%; border: 0; }
-    .ra-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+    .ra-row { display: grid; grid-template-columns: 160px minmax(260px, 1fr); gap: 10px; align-items: center; margin-bottom: 10px; }
+    .ra-hr { border: none; border-top: 1px solid #e2e8f0; margin: 12px 0; }
+    .ra-err { color: #b91c1c; font-size: 13px; }
+    .ra-ok { color: #166534; font-size: 13px; }
+    .ra-dim { color: #64748b; font-size: 12px; }
   `;
 
   const style = document.createElement('style');
@@ -54,88 +56,248 @@
     window.location.href = LOGIN_ROOT;
   }
 
-  async function api(path, method = 'GET', body = null) {
+  async function apiJson(path, method = 'GET', body = null) {
     const token = getToken();
-    if (!token) {
-      clearTokenAndExit();
-      return null;
-    }
-    const headers = { 'authorization': 'Bearer ' + token };
+    if (!token) return clearTokenAndExit(), null;
+    const headers = { authorization: 'Bearer ' + token };
     if (body !== null) headers['content-type'] = 'application/json';
     const res = await fetch(API_ROOT + path, {
       method,
       headers,
-      body: body === null ? undefined : JSON.stringify(body),
+      body: body == null ? undefined : JSON.stringify(body),
     });
-    if (res.status === 401) {
-      clearTokenAndExit();
-      return null;
-    }
+    if (res.status === 401) return clearTokenAndExit(), null;
     const text = await res.text();
     let payload = null;
     try { payload = JSON.parse(text); } catch {}
-    if (!res.ok) {
-      throw new Error((payload && payload.error && payload.error.message) || 'Request failed');
-    }
+    if (!res.ok) throw new Error((payload && payload.error && payload.error.message) || 'Request failed');
     return payload;
   }
 
+  async function apiText(path) {
+    const token = getToken();
+    if (!token) return clearTokenAndExit(), '';
+    const res = await fetch(API_ROOT + path, {
+      method: 'GET',
+      headers: { authorization: 'Bearer ' + token },
+    });
+    if (res.status === 401) return clearTokenAndExit(), '';
+    if (!res.ok) throw new Error('Request failed');
+    return await res.text();
+  }
+
+  async function putYaml(path, yamlText) {
+    const token = getToken();
+    if (!token) return clearTokenAndExit();
+    const res = await fetch(API_ROOT + path, {
+      method: 'PUT',
+      headers: {
+        authorization: 'Bearer ' + token,
+        'content-type': 'text/yaml',
+      },
+      body: yamlText,
+    });
+    if (res.status === 401) return clearTokenAndExit();
+    const text = await res.text();
+    let payload = null;
+    try { payload = JSON.parse(text); } catch {}
+    if (!res.ok) throw new Error((payload && payload.error && payload.error.message) || 'Save failed');
+    return payload;
+  }
+
+  function parseTopLevelYamlValue(yamlText, key) {
+    const m = String(yamlText || '').match(new RegExp('^' + key + ':\\s*(.+)$', 'm'));
+    if (!m) return '';
+    const raw = String(m[1] || '').trim();
+    if (!raw || raw.toLowerCase() === 'null') return '';
+    if ((raw.startsWith('"') && raw.endsWith('"')) || (raw.startsWith("'") && raw.endsWith("'"))) return raw.slice(1, -1);
+    return raw;
+  }
+
+  function setTopLevelYamlValue(yamlText, key, value, nullable) {
+    const text = String(yamlText || '');
+    const v = String(value || '').trim();
+    const encoded = !v && nullable ? 'null' : ('"' + v.replace(/"/g, '\\"') + '"');
+    const line = key + ': ' + encoded;
+    if (new RegExp('^' + key + ':\\s*', 'm').test(text)) {
+      return text.replace(new RegExp('^' + key + ':\\s*.*$', 'm'), line);
+    }
+    return line + '\n' + text;
+  }
+
+  function headersObjToText(obj) {
+    if (!obj || typeof obj !== 'object') return '';
+    return Object.entries(obj).map(([k, v]) => String(k) + ': ' + String(v == null ? '' : v)).join('\n');
+  }
+
+  function headersTextToObj(text) {
+    const out = {};
+    String(text || '').split(/\r?\n/).forEach((line) => {
+      const s = line.trim();
+      if (!s) return;
+      const idx = s.indexOf(':');
+      if (idx <= 0) return;
+      const key = s.slice(0, idx).trim();
+      const val = s.slice(idx + 1).trim();
+      if (!key) return;
+      out[key] = val;
+    });
+    return out;
+  }
+
+  function readBody(type, text) {
+    if (type === 'none') return { type: 'none' };
+    if (type === 'raw') return { type: 'raw', raw: String(text || '') };
+    const trimmed = String(text || '').trim();
+    if (!trimmed) return { type: 'json', value: {} };
+    try {
+      return { type: 'json', value: JSON.parse(trimmed) };
+    } catch {
+      throw new Error('Token request body JSON is invalid.');
+    }
+  }
+
   function App() {
-    const [view, setView] = React.useState('console');
-    const [status, setStatus] = React.useState(null);
-    const [keys, setKeys] = React.useState(null);
-    const [yaml, setYaml] = React.useState('');
+    const [view, setView] = React.useState('general');
+    const [status, setStatus] = React.useState({ version: '', build: '', debug: false, enrichments: [] });
+    const [yamlText, setYamlText] = React.useState('');
+    const [proxyName, setProxyName] = React.useState('');
+    const [targetHost, setTargetHost] = React.useState('');
+    const [strategy, setStrategy] = React.useState('none');
+    const [reqMethod, setReqMethod] = React.useState('POST');
+    const [reqUrl, setReqUrl] = React.useState('');
+    const [reqHeaders, setReqHeaders] = React.useState('');
+    const [reqBodyType, setReqBodyType] = React.useState('json');
+    const [reqBody, setReqBody] = React.useState('{}');
+    const [authType, setAuthType] = React.useState('none');
+    const [authHeaderName, setAuthHeaderName] = React.useState('Authorization');
+    const [authSecretRef, setAuthSecretRef] = React.useState('secret1');
+    const [keyPath, setKeyPath] = React.useState('data.apiKey');
+    const [ttlPath, setTtlPath] = React.useState('data.ttl');
+    const [ttlUnit, setTtlUnit] = React.useState('seconds');
+    const [expiresAtPath, setExpiresAtPath] = React.useState('');
+    const [refreshSkew, setRefreshSkew] = React.useState('300');
+    const [retry401, setRetry401] = React.useState(true);
     const [saving, setSaving] = React.useState(false);
     const [error, setError] = React.useState('');
-    const [legacyUrl, setLegacyUrl] = React.useState('');
+    const [ok, setOk] = React.useState('');
 
     React.useEffect(() => {
-      const token = getToken();
-      if (!token) {
-        clearTokenAndExit();
-        return;
-      }
-      setLegacyUrl('/admin?admin_access_token=' + encodeURIComponent(token));
+      if (!getToken()) return clearTokenAndExit();
       (async () => {
         try {
-          const [ver, keyState, cfg] = await Promise.all([
-            api('/version'),
-            api('/keys'),
-            api('/config'),
+          const [versionRes, debugRes, headersRes, cfgYaml, keyRotation] = await Promise.all([
+            apiJson('/version'),
+            apiJson('/debug'),
+            apiJson('/headers'),
+            apiText('/config'),
+            apiJson('/key-rotation-config'),
           ]);
-          if (!ver || !keyState || !cfg) return;
-          setStatus(ver.data || null);
-          setKeys(keyState.data || null);
-          setYaml(String(cfg.data && cfg.data.yaml || ''));
+          if (!versionRes || !keyRotation) return;
+          setYamlText(cfgYaml || '');
+          setProxyName(parseTopLevelYamlValue(cfgYaml, 'proxyName'));
+          setTargetHost(parseTopLevelYamlValue(cfgYaml, 'targetHost'));
+          setStatus({
+            version: String(versionRes?.data?.version || ''),
+            build: String(versionRes?.data?.build_timestamp || ''),
+            debug: !!debugRes?.data?.enabled,
+            enrichments: Array.isArray(headersRes?.enriched_headers) ? headersRes.enriched_headers : [],
+          });
+          const d = keyRotation.data || {};
+          const req = d.request || {};
+          const enabled = !!d.enabled;
+          const reqAuthType = String(req?.authorization?.type || '').trim();
+          if (!enabled) setStrategy('none');
+          else if (reqAuthType === 'static') setStrategy('static');
+          else setStrategy('advanced');
+
+          setReqMethod(String(req.method || 'POST').toUpperCase());
+          setReqUrl(String(req.url || ''));
+          setReqHeaders(headersObjToText(req.headers || {}));
+          if (req.body && req.body.type === 'raw') {
+            setReqBodyType('raw');
+            setReqBody(String(req.body.raw || ''));
+          } else if (req.body && req.body.type === 'none') {
+            setReqBodyType('none');
+            setReqBody('');
+          } else {
+            setReqBodyType('json');
+            setReqBody(JSON.stringify((req.body && req.body.value) || {}, null, 2));
+          }
+          setAuthType(reqAuthType || 'none');
+          setAuthHeaderName(String(req?.authorization?.header_name || 'Authorization'));
+          setAuthSecretRef(String(req?.authorization?.secret_ref || 'secret1'));
+          setKeyPath(String(d.key_path || 'data.apiKey'));
+          setTtlPath(d.ttl_path == null ? '' : String(d.ttl_path));
+          setTtlUnit(String(d.ttl_unit || 'seconds'));
+          setExpiresAtPath(d.expires_at_path == null ? '' : String(d.expires_at_path));
+          setRefreshSkew(String(Number(d.refresh_skew_seconds || 0)));
+          setRetry401(!!d.retry_once_on_401);
         } catch (err) {
           setError(String(err && err.message || err));
         }
       })();
     }, []);
 
-    async function saveYaml() {
+    function renderOverviewStatus() {
+      return e('div', { className: 'ra-grid' },
+        e('div', { className: 'ra-card' },
+          e('div', { className: 'ra-pill' }, 'Status'),
+          e('div', null, e('b', null, 'Proxy Name:'), ' ', proxyName || 'n/a'),
+          e('div', null, e('b', null, 'Debug Enabled:'), ' ', status.debug ? 'yes' : 'no'),
+          e('div', null, e('b', null, 'Target URL:'), ' ', targetHost || 'n/a'),
+          e('div', null, e('b', null, 'Enrichments:'), ' ', (status.enrichments && status.enrichments.length) ? status.enrichments.join(', ') : 'n/a')
+        ),
+        e('div', { className: 'ra-card' },
+          e('div', { className: 'ra-pill' }, 'Build'),
+          e('div', null, e('b', null, 'Version:'), ' ', status.version || 'unknown'),
+          e('div', null, e('b', null, 'Build Timestamp:'), ' ', status.build || 'n/a')
+        )
+      );
+    }
+
+    async function saveGeneral() {
       setSaving(true);
       setError('');
+      setOk('');
       try {
-        await fetch(API_ROOT + '/config', {
-          method: 'PUT',
-          headers: {
-            'authorization': 'Bearer ' + getToken(),
-            'content-type': 'application/x-yaml',
-          },
-          body: yaml,
-        }).then(async (res) => {
-          if (res.status === 401) {
-            clearTokenAndExit();
-            return;
-          }
-          if (!res.ok) {
-            const text = await res.text();
-            let payload = null;
-            try { payload = JSON.parse(text); } catch {}
-            throw new Error((payload && payload.error && payload.error.message) || 'Save failed');
-          }
-        });
+        let nextYaml = String(yamlText || '');
+        nextYaml = setTopLevelYamlValue(nextYaml, 'proxyName', proxyName, true);
+        nextYaml = setTopLevelYamlValue(nextYaml, 'targetHost', targetHost, false);
+        await putYaml('/config', nextYaml);
+        setYamlText(nextYaml);
+
+        const request = {
+          method: String(reqMethod || 'POST').toUpperCase(),
+          url: String(reqUrl || '').trim(),
+          headers: headersTextToObj(reqHeaders),
+          body: readBody(reqBodyType, reqBody),
+        };
+        if (strategy === 'none') {
+          request.authorization = { type: 'none' };
+        } else if (strategy === 'static') {
+          request.authorization = {
+            type: 'static',
+            header_name: String(authHeaderName || 'Authorization').trim() || 'Authorization',
+            secret_ref: String(authSecretRef || 'secret1').trim() || 'secret1',
+          };
+        } else {
+          request.authorization = { type: String(authType || 'oauth_client_credentials') };
+        }
+
+        const payload = {
+          enabled: strategy !== 'none',
+          strategy: strategy === 'advanced' ? 'oauth_client_credentials' : 'json_ttl',
+          request,
+          key_path: String(keyPath || '').trim(),
+          ttl_path: String(ttlPath || '').trim() || null,
+          ttl_unit: String(ttlUnit || 'seconds'),
+          expires_at_path: String(expiresAtPath || '').trim() || null,
+          refresh_skew_seconds: Number(refreshSkew || 0),
+          retry_once_on_401: !!retry401,
+        };
+        await apiJson('/key-rotation-config', 'PUT', payload);
+        setOk('General saved.');
       } catch (err) {
         setError(String(err && err.message || err));
       } finally {
@@ -144,71 +306,107 @@
     }
 
     const nav = e('div', { className: 'ra-nav' },
-      e('button', { className: view === 'console' ? 'active' : '', onClick: () => setView('console') }, 'Legacy Console'),
       e('button', { className: view === 'general' ? 'active' : '', onClick: () => setView('general') }, 'General'),
       e('button', { className: view === 'config' ? 'active' : '', onClick: () => setView('config') }, 'YAML Configuration'),
       e('button', { className: view === 'keys' ? 'active' : '', onClick: () => setView('keys') }, 'API Keys'),
       e('button', { onClick: clearTokenAndExit }, 'Logout')
     );
 
-    const consoleView = e('div', {},
-      e('div', { className: 'ra-topbar' },
-        e('div', {},
-          e('h1', { className: 'ra-title' }, 'Admin Console'),
-          e('p', { className: 'ra-sub' }, 'Full existing admin UI embedded for feature parity during migration.')
-        ),
-        e('div', {},
-          e('button', { className: 'ra-btn', onClick: () => window.open(legacyUrl || '/admin', '_blank', 'noopener,noreferrer') }, 'Open in new tab')
-        )
-      ),
-      e('div', { className: 'ra-iframe-wrap' },
-        legacyUrl
-          ? e('iframe', { className: 'ra-iframe', src: legacyUrl, title: 'SimpleProxy Legacy Admin' })
-          : e('div', { className: 'ra-card' }, 'Preparing admin session...')
-      )
-    );
-
     const generalView = e('div', {},
-      e('h1', { className: 'ra-title' }, 'SimpleProxy Admin'),
-      e('p', { className: 'ra-sub' }, 'React shell and migration workspace.'),
-      e('div', { className: 'ra-grid' },
-        e('div', { className: 'ra-card' },
-          e('div', { className: 'ra-pill' }, 'Version'),
-          e('p', null, status && status.version ? status.version : '...')
+      e('h1', { className: 'ra-title' }, 'General'),
+      e('p', { className: 'ra-sub' }, 'React migration of legacy General tab.'),
+      renderOverviewStatus(),
+      e('div', { className: 'ra-card' },
+        e('label', { className: 'ra-field', htmlFor: 'ra-proxy-name' }, 'Proxy name'),
+        e('input', { id: 'ra-proxy-name', className: 'ra-input', value: proxyName, onChange: (ev) => setProxyName(ev.target.value), placeholder: 'friendly name' }),
+        e('label', { className: 'ra-field', htmlFor: 'ra-target-host' }, 'Target URL'),
+        e('input', { id: 'ra-target-host', className: 'ra-input', value: targetHost, onChange: (ev) => setTargetHost(ev.target.value), placeholder: 'https://api.example.com' }),
+        e('hr', { className: 'ra-hr' }),
+        e('p', { style: { margin: '0 0 8px 0', fontSize: '18px', fontWeight: 700 } }, 'Target Auth'),
+        e('label', { className: 'ra-field', htmlFor: 'ra-strategy' }, 'Authentication Type'),
+        e('select', { id: 'ra-strategy', className: 'ra-select', value: strategy, onChange: (ev) => setStrategy(ev.target.value) },
+          e('option', { value: 'none' }, 'None'),
+          e('option', { value: 'static' }, 'Static'),
+          e('option', { value: 'advanced' }, 'Advanced (OAuth/Rotation)')
         ),
-        e('div', { className: 'ra-card' },
-          e('div', { className: 'ra-pill' }, 'Build Timestamp'),
-          e('p', null, status && status.build_timestamp ? status.build_timestamp : 'n/a')
+        strategy !== 'none' ? e('div', {},
+          e('p', { style: { margin: '12px 0 6px', fontWeight: 700 } }, 'Token Request'),
+          e('div', { className: 'ra-row' },
+            e('label', { className: 'ra-field', htmlFor: 'ra-req-method' }, 'Method'),
+            e('select', { id: 'ra-req-method', className: 'ra-select', value: reqMethod, onChange: (ev) => setReqMethod(ev.target.value) },
+              e('option', { value: 'GET' }, 'GET'),
+              e('option', { value: 'POST' }, 'POST'),
+              e('option', { value: 'PUT' }, 'PUT'),
+              e('option', { value: 'PATCH' }, 'PATCH')
+            )
+          ),
+          e('label', { className: 'ra-field', htmlFor: 'ra-req-url' }, 'URL'),
+          e('input', { id: 'ra-req-url', className: 'ra-input', value: reqUrl, onChange: (ev) => setReqUrl(ev.target.value), placeholder: 'https://...' }),
+          e('label', { className: 'ra-field', htmlFor: 'ra-req-headers' }, 'Headers'),
+          e('textarea', { id: 'ra-req-headers', className: 'ra-textarea', value: reqHeaders, onChange: (ev) => setReqHeaders(ev.target.value), placeholder: 'Header-Name: value' }),
+          e('label', { className: 'ra-field', htmlFor: 'ra-req-body-type' }, 'Request Body Type'),
+          e('select', { id: 'ra-req-body-type', className: 'ra-select', value: reqBodyType, onChange: (ev) => setReqBodyType(ev.target.value) },
+            e('option', { value: 'json' }, 'json'),
+            e('option', { value: 'raw' }, 'raw'),
+            e('option', { value: 'none' }, 'none')
+          ),
+          reqBodyType !== 'none' ? e('div', {},
+            e('label', { className: 'ra-field', htmlFor: 'ra-req-body' }, 'Request Body'),
+            e('textarea', { id: 'ra-req-body', className: 'ra-textarea', value: reqBody, onChange: (ev) => setReqBody(ev.target.value), placeholder: reqBodyType === 'json' ? '{}' : '' })
+          ) : null,
+          strategy === 'static' ? e('div', {},
+            e('label', { className: 'ra-field', htmlFor: 'ra-auth-header-name' }, 'Auth header name'),
+            e('input', { id: 'ra-auth-header-name', className: 'ra-input', value: authHeaderName, onChange: (ev) => setAuthHeaderName(ev.target.value), placeholder: 'Authorization' }),
+            e('label', { className: 'ra-field', htmlFor: 'ra-auth-secret-ref' }, 'Select secret slot'),
+            e('select', { id: 'ra-auth-secret-ref', className: 'ra-select', value: authSecretRef, onChange: (ev) => setAuthSecretRef(ev.target.value) },
+              e('option', { value: 'secret1' }, 'secret1'),
+              e('option', { value: 'secret2' }, 'secret2')
+            )
+          ) : null,
+          strategy === 'advanced' ? e('div', {},
+            e('label', { className: 'ra-field', htmlFor: 'ra-auth-type' }, 'Auth Type'),
+            e('select', { id: 'ra-auth-type', className: 'ra-select', value: authType, onChange: (ev) => setAuthType(ev.target.value) },
+              e('option', { value: 'oauth_client_credentials' }, 'OAuth'),
+              e('option', { value: 'json_ttl' }, 'Generic TTL Rotation'),
+              e('option', { value: 'none' }, 'none'),
+              e('option', { value: 'static' }, 'static')
+            ),
+            e('p', { style: { margin: '12px 0 6px', fontWeight: 700 } }, 'Token Response'),
+            e('label', { className: 'ra-field', htmlFor: 'ra-key-path' }, 'Response Key Path'),
+            e('input', { id: 'ra-key-path', className: 'ra-input', value: keyPath, onChange: (ev) => setKeyPath(ev.target.value), placeholder: 'data.apiKey' }),
+            e('label', { className: 'ra-field', htmlFor: 'ra-ttl-path' }, 'Response TTL Path'),
+            e('input', { id: 'ra-ttl-path', className: 'ra-input', value: ttlPath, onChange: (ev) => setTtlPath(ev.target.value), placeholder: 'data.ttl' }),
+            e('label', { className: 'ra-field', htmlFor: 'ra-ttl-unit' }, 'Response TTL Unit'),
+            e('select', { id: 'ra-ttl-unit', className: 'ra-select', value: ttlUnit, onChange: (ev) => setTtlUnit(ev.target.value) },
+              e('option', { value: 'seconds' }, 'seconds'),
+              e('option', { value: 'minutes' }, 'minutes'),
+              e('option', { value: 'hours' }, 'hours')
+            ),
+            e('label', { className: 'ra-field', htmlFor: 'ra-expires-at-path' }, 'Response Expires-At Path'),
+            e('input', { id: 'ra-expires-at-path', className: 'ra-input', value: expiresAtPath, onChange: (ev) => setExpiresAtPath(ev.target.value), placeholder: 'data.expiresAt' }),
+            e('label', { className: 'ra-field', htmlFor: 'ra-refresh-skew' }, 'Refresh Skew Seconds'),
+            e('input', { id: 'ra-refresh-skew', className: 'ra-input', value: refreshSkew, onChange: (ev) => setRefreshSkew(ev.target.value), type: 'number', min: '0' }),
+            e('label', { style: { display: 'flex', gap: '8px', alignItems: 'center', margin: '12px 0 0' } },
+              e('input', { type: 'checkbox', checked: retry401, onChange: (ev) => setRetry401(!!ev.target.checked) }),
+              e('span', null, 'Retry Once On 401')
+            )
+          ) : null
+        ) : null,
+        e('div', { style: { marginTop: '14px', borderTop: '1px solid #e2e8f0', paddingTop: '10px', display: 'flex', gap: '8px' } },
+          e('button', { className: 'ra-btn primary', onClick: saveGeneral, disabled: saving }, saving ? 'Saving...' : 'Save')
         ),
-        e('div', { className: 'ra-card' },
-          e('div', { className: 'ra-pill' }, 'Current Route'),
-          e('p', null, '/_admin'),
-          e('p', { className: 'ra-sub ra-mono' }, 'Auth token remains in sessionStorage and is never appended to browser URL for /_admin.')
-        )
+        ok ? e('div', { className: 'ra-ok', style: { marginTop: '8px' } }, ok) : null
       )
     );
 
     const configView = e('div', {},
       e('h1', { className: 'ra-title' }, 'YAML Configuration'),
-      e('p', { className: 'ra-sub' }, 'Uses the same /admin/config API as current UI.'),
-      e('div', { className: 'ra-card' },
-        e('textarea', {
-          className: 'ra-textarea',
-          value: yaml,
-          onChange: (ev) => setYaml(ev.target.value),
-        }),
-        e('div', { style: { marginTop: '10px' } },
-          e('button', { className: 'ra-btn primary', onClick: saveYaml, disabled: saving }, saving ? 'Saving...' : 'Save')
-        )
-      )
+      e('p', { className: 'ra-sub' }, 'Migration pending.')
     );
 
     const keysView = e('div', {},
       e('h1', { className: 'ra-title' }, 'API Keys'),
-      e('p', { className: 'ra-sub' }, 'Status snapshot from /admin/keys.'),
-      e('div', { className: 'ra-card' },
-        e('pre', { style: { margin: 0, whiteSpace: 'pre-wrap', fontSize: '12px' } }, JSON.stringify(keys || {}, null, 2))
-      )
+      e('p', { className: 'ra-sub' }, 'Migration pending.')
     );
 
     return e('div', { className: 'ra-shell' },
@@ -219,7 +417,6 @@
       ),
       e('main', { className: 'ra-main' },
         error ? e('div', { className: 'ra-card' }, e('div', { className: 'ra-err' }, error)) : null,
-        view === 'console' ? consoleView : null,
         view === 'general' ? generalView : null,
         view === 'config' ? configView : null,
         view === 'keys' ? keysView : null
