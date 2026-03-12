@@ -159,7 +159,7 @@
             + renderChip('secret1', 'Secret1')
             + renderChip('secret2', 'Secret2')
             + '</div>'
-            + '<div style="font-size:11px;color:#64748b;margin-top:4px;">Exposed as variables ${secret1} and ${secret2}.</div>'
+            + '<div style="margin-top:6px;padding:4px 8px;border:1px solid #bfdbfe;background:#eff6ff;color:#1e3a8a;border-radius:999px;font-size:10px;line-height:1.3;display:inline-block;">Exposed as variables ${secret1} and ${secret2}. Can be added to headers or message body</div>'
             + '</div>';
         }
         function normalizeUiAuthType(value) {
@@ -214,8 +214,6 @@
                 + '<select id="' + prefix + '-auth-secret-ref"'
                 + ' style="width:100%;max-width:360px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;">'
                 + '<option value="">Select secret slot</option>'
-                + '<option value="secret1">secret1</option>'
-                + '<option value="secret2">secret2</option>'
             + '</select>'
             + '<div style="font-size:12px;color:#64748b;margin-top:4px;">Select which saved slot to inject into the auth header.</div>'
             + '</div>'
@@ -376,6 +374,7 @@
         }
         function setRequestSecretSlotExists(prefix, slot, exists) {
           requestSecretSlotState[slot] = { exists: !!exists };
+          updateRequestSecretSlotSelect(prefix);
           const chipNode = el(requestSecretChipId(prefix, slot));
           if (chipNode) {
             const isSet = !!exists;
@@ -385,9 +384,27 @@
             chipNode.innerHTML = ''
               + '<span style="font-weight:600;">' + requestSecretLabel(slot) + (isSet ? '' : ' (empty)') + '</span>'
               + (isSet
-                ? ('<a href="#" data-secret-action="update" data-secret-slot="' + slot + '" style="font-size:11px;color:inherit;text-decoration:underline;">update</a>'
-                  + '<a href="#" data-secret-action="delete" data-secret-slot="' + slot + '" style="font-size:11px;color:inherit;text-decoration:underline;">delete</a>')
+                ? ('<a href="#" data-secret-action="update" data-secret-slot="' + slot + '" style="font-size:11px;color:inherit;text-decoration:underline;">update</a>')
                 : ('<a href="#" data-secret-action="add" data-secret-slot="' + slot + '" style="font-size:11px;color:inherit;text-decoration:underline;">add</a>'));
+          }
+        }
+        function updateRequestSecretSlotSelect(prefix) {
+          const select = el(prefix + '-auth-secret-ref');
+          if (!select) return;
+          const current = String(select.value || '').trim();
+          const desired = String(select.dataset.desiredSecretRef || '').trim();
+          const selected = current || desired;
+          let html = '<option value="">Select secret slot</option>';
+          HTTP_SECRET_REF_OPTIONS.forEach((slot) => {
+            const exists = !!requestSecretSlotState[slot]?.exists;
+            if (exists) {
+              const isSelected = selected === slot;
+              html += '<option value="' + slot + '"' + (isSelected ? ' selected' : '') + '>' + slot + '</option>';
+            }
+          });
+          select.innerHTML = html;
+          if (selected && !HTTP_SECRET_REF_OPTIONS.some((slot) => slot === selected && !!requestSecretSlotState[slot]?.exists)) {
+            select.value = '';
           }
         }
         async function refreshRequestSecretSlotStatus(prefix, slot) {
@@ -443,18 +460,6 @@
               const action = String(actionNode.getAttribute('data-secret-action') || '').trim();
               const selectedSlot = String(actionNode.getAttribute('data-secret-slot') || slot).trim();
               if (!selectedSlot) return;
-              if (action === 'delete') {
-                const ok = window.confirm('Delete ' + requestSecretLabel(selectedSlot) + '?');
-                if (!ok) return;
-                try {
-                  await apiCall(ADMIN_ROOT + '/http-secrets/' + encodeURIComponent(selectedSlot), 'DELETE');
-                  await refreshRequestSecretSlotsForForms(['kr', 'logging-req', 'jwt-jwks']);
-                  showWarning(requestSecretLabel(selectedSlot) + ' deleted.');
-                } catch (e) {
-                  showWarning(String(e.message || e));
-                }
-                return;
-              }
               if (action === 'add' || action === 'update') {
                 openRequestSecretEditModal(selectedSlot, action);
               }
@@ -504,16 +509,6 @@
             await apiCall(ADMIN_ROOT + '/http-auth/' + encodeURIComponent(profile) + '/secret', 'PUT', { value: rawValue });
             if (outputId) setOutput(outputId, 'Secret saved.');
             else showWarning('Secret saved.');
-          } catch (e) {
-            if (outputId) setOutput(outputId, String(e.message || e));
-            else showWarning(String(e.message || e));
-          }
-        }
-        async function deleteAuthProfileSecret(profile, outputId) {
-          try {
-            await apiCall(ADMIN_ROOT + '/http-auth/' + encodeURIComponent(profile) + '/secret', 'DELETE');
-            if (outputId) setOutput(outputId, 'Secret deleted.');
-            else showWarning('Secret deleted.');
           } catch (e) {
             if (outputId) setOutput(outputId, String(e.message || e));
             else showWarning(String(e.message || e));
@@ -661,7 +656,8 @@
               if (matchCurly) secretRef = matchCurly[1];
               else if (matchDollar) secretRef = matchDollar[1];
             }
-            el(prefix + '-auth-secret-ref').value = HTTP_SECRET_REF_OPTIONS.includes(secretRef) ? secretRef : '';
+            el(prefix + '-auth-secret-ref').dataset.desiredSecretRef = HTTP_SECRET_REF_OPTIONS.includes(secretRef) ? secretRef : '';
+            updateRequestSecretSlotSelect(prefix);
           }
         }
          function setHtml(id, html) {
@@ -1227,6 +1223,16 @@
           if (el('jwt-inbound-detail-fields')) el('jwt-inbound-detail-fields').style.display = mode === 'none' ? 'none' : 'block';
           if (el('jwt-inbound-jwks-fields')) el('jwt-inbound-jwks-fields').style.display = mode === 'jwks' ? 'block' : 'none';
           if (el('jwt-inbound-shared-note')) el('jwt-inbound-shared-note').style.display = mode === 'shared_secret' ? 'block' : 'none';
+          if (mode !== 'jwks') {
+            if (el('jwt-inbound-jwks-request-wrap')) el('jwt-inbound-jwks-request-wrap').style.display = 'none';
+          } else {
+            setJwtJwksRequestVisibility(!!el('jwt-inbound-jwks-enabled')?.checked);
+          }
+        }
+        function setJwtJwksRequestVisibility(enabled) {
+          if (el('jwt-inbound-jwks-request-wrap')) {
+            el('jwt-inbound-jwks-request-wrap').style.display = enabled ? 'block' : 'none';
+          }
         }
         function setJwtOutboundMode(modeValue) {
           const mode = String(modeValue || 'none');
@@ -1260,6 +1266,9 @@
             if (el('jwt-inbound-issuer')) el('jwt-inbound-issuer').value = inbound.issuer || '';
             if (el('jwt-inbound-audience')) el('jwt-inbound-audience').value = inbound.audience || '';
             setRequestForm('jwt-jwks', jwt.http_request || inbound.http_request || {});
+            const jwksEnabled = inboundMode === 'jwks' && !!((jwt.http_request || inbound.http_request || {}).url);
+            if (el('jwt-inbound-jwks-enabled')) el('jwt-inbound-jwks-enabled').checked = jwksEnabled;
+            setJwtJwksRequestVisibility(jwksEnabled);
             if (el('jwt-inbound-skew')) el('jwt-inbound-skew').value = inbound.clock_skew_seconds == null ? '' : String(inbound.clock_skew_seconds);
             if (el('jwt-outbound-header')) el('jwt-outbound-header').value = String(outbound.header || 'Authorization');
             if (el('jwt-outbound-scheme')) el('jwt-outbound-scheme').value = String(outbound.scheme || 'Bearer');
@@ -1596,10 +1605,8 @@
                   timestampFormatId: 'logging-ts-format',
                   timestampFormatLabel: 'Timestamp format',
                   timestampFormatValue: 'epoch_ms',
-                  buttons: [{ id: 'logging-secret-delete-btn', label: 'Delete secret', kind: 'danger' }],
                 }));
                 bindSecretStorage('logging', 'logging-secret');
-                bindOnce('logging-secret-delete-btn', loggingSecretDelete);
               }
               debugLoadTrace();
               loadLoggingStatus();
@@ -1638,12 +1645,10 @@
                   timestampFormatValue: 'epoch_ms',
                   buttons: [
                     { id: 'jwt-inbound-save-btn', label: 'Save/Update secret' },
-                    { id: 'jwt-inbound-delete-btn', label: 'Delete secret', kind: 'danger' },
                   ],
                 }));
                 bindSecretStorage('jwt-inbound', 'jwt-inbound-secret');
                 bindOnce('jwt-inbound-save-btn', () => saveAuthProfileSecret('jwt_inbound', 'jwt-inbound-secret', 'keys-output'));
-                bindOnce('jwt-inbound-delete-btn', () => deleteAuthProfileSecret('jwt_inbound', 'keys-output'));
               }
             }
             if (name === 'inbound-traffic-controls') {
@@ -1727,14 +1732,7 @@
          }
         async function loggingSave() {
           try {
-            const mode = normalizeUiAuthType(el('logging-auth-mode')?.value || 'none');
-            const enabled = mode !== 'none';
-            if (enabled) {
-              if (mode === 'static') setRequestAuthMode('logging-req', 'static');
-              else setRequestAuthMode('logging-req', 'advanced');
-            } else {
-              setRequestAuthMode('logging-req', 'none');
-            }
+            const enabled = !!el('logging-external-enabled')?.checked;
             const config = await fetchConfigJsonFromYaml();
             if (!config.debug) config.debug = {};
             if (enabled) {
@@ -1773,13 +1771,6 @@
             showWarning(String(e.message || e));
           }
         }
-         async function loggingSecretDelete() {
-           try {
-             await apiCall(ADMIN_ROOT + '/debug/loggingSecret', 'DELETE');
-             await loadLoggingStatus();
-           }
-           catch (e) { showWarning(String(e.message || e)); }
-         }
         async function loadLoggingStatus() {
           try {
             const [debugStatus, secretStatus, yamlText] = await Promise.all([
@@ -1838,26 +1829,27 @@
               launchLink.style.pointerEvents = 'auto';
             }
             const configEnabled = !!(endpointRequest && endpointRequest.url);
-            let loggingAuthMode = 'none';
-            if (configEnabled) {
-              const authType = String(endpointRequest?.authorization?.type || '').trim();
-              if (authType === 'static') loggingAuthMode = 'static';
-              else if (authType === 'key_rotation') loggingAuthMode = 'advanced';
-            }
-            if (el('logging-auth-mode')) el('logging-auth-mode').value = loggingAuthMode;
-            if (el('logging-config-fields')) el('logging-config-fields').style.display = loggingAuthMode === 'none' ? 'none' : 'block';
-            if (el('logging-secret-wrap')) el('logging-secret-wrap').style.display = loggingAuthMode === 'none' ? 'none' : 'block';
-            if (liveLogModalOpen) {
-              if (d.enabled) {
-                setLiveLogStatus('Logging is enabled. Connecting...', 'ok');
-                startLiveLogStream();
-              } else {
+           if (liveLogModalOpen) {
+             if (d.enabled) {
+               setLiveLogStatus('Logging is enabled. Connecting...', 'ok');
+               startLiveLogStream();
+             } else {
                 stopLiveLogStream();
-                setLiveLogStatus('Logging is disabled. Enable it on the Logging page to stream logs.', 'warn');
-              }
-            }
+               setLiveLogStatus('Logging is disabled. Enable it on the Logging page to stream logs.', 'warn');
+             }
+           }
+            if (el('logging-external-enabled')) el('logging-external-enabled').checked = configEnabled;
+            setLoggingExternalConfigVisibility(configEnabled);
           } catch (e) {
             showWarning(String(e.message || e));
+          }
+        }
+        function setLoggingExternalConfigVisibility(enabled) {
+          if (el('logging-config-fields')) el('logging-config-fields').style.display = enabled ? 'block' : 'none';
+          if (!enabled) setRequestAuthMode('logging-req', 'none');
+          else {
+            const authType = String(el('logging-req-auth-type')?.value || 'none');
+            applyAuthTypePreset('logging-req', authType, authType === 'static' ? 'static' : 'advanced');
           }
         }
         async function configLoad() {
@@ -2079,8 +2071,9 @@
             const inboundEnabled = inboundMode !== 'none';
             const outboundEnabled = outboundMode !== 'none';
             const jwtEnabled = inboundEnabled || outboundEnabled;
-            const jwksRequest = readRequestForm('jwt-jwks');
-            if (inboundMode === 'jwks') {
+            const jwksRequestEnabled = inboundMode === 'jwks' && !!el('jwt-inbound-jwks-enabled')?.checked;
+            const jwksRequest = jwksRequestEnabled ? readRequestForm('jwt-jwks') : null;
+            if (jwksRequestEnabled) {
               validateRequestAuthSecretRef('jwt-jwks');
             }
             const jwtConfig = {
@@ -2092,7 +2085,7 @@
                 scheme: normalizeOptionalString(el('jwt-inbound-scheme')?.value),
                 issuer: normalizeOptionalString(el('jwt-inbound-issuer')?.value),
                 audience: normalizeOptionalString(el('jwt-inbound-audience')?.value),
-                http_request: inboundMode === 'jwks' ? jwksRequest : null,
+                http_request: jwksRequestEnabled ? jwksRequest : null,
                 clock_skew_seconds: normalizeOptionalInt(el('jwt-inbound-skew')?.value),
               },
               outbound: {
@@ -2104,8 +2097,8 @@
                 subject: normalizeOptionalString(el('jwt-outbound-subject')?.value),
                 ttl_seconds: normalizeOptionalInt(el('jwt-outbound-ttl')?.value),
               },
-              http_request: inboundMode === 'jwks' ? jwksRequest : null,
-              authorization: inboundMode === 'jwks' ? (jwksRequest.authorization || null) : null,
+              http_request: jwksRequestEnabled ? jwksRequest : null,
+              authorization: jwksRequestEnabled ? (jwksRequest.authorization || null) : null,
             };
             config.jwt = jwtConfig;
             if (!config.http_auth) config.http_auth = {};
@@ -3178,21 +3171,10 @@
               debugDisable();
             }
           });
-          el('logging-auth-mode')?.addEventListener('change', () => {
-            const mode = normalizeUiAuthType(el('logging-auth-mode')?.value || 'none');
-            if (mode === 'none') {
-              setRequestAuthMode('logging-req', 'none');
-              if (el('logging-config-fields')) el('logging-config-fields').style.display = 'none';
-              if (el('logging-secret-wrap')) el('logging-secret-wrap').style.display = 'none';
-              return;
-            }
-            if (mode === 'static') setRequestAuthMode('logging-req', 'static');
-            else {
-              applyAuthTypePreset('logging-req', String(el('logging-req-auth-type')?.value || 'none'), 'advanced');
-              setRequestAuthMode('logging-req', 'advanced');
-            }
-            if (el('logging-config-fields')) el('logging-config-fields').style.display = 'block';
-            if (el('logging-secret-wrap')) el('logging-secret-wrap').style.display = 'block';
+          el('logging-external-enabled')?.addEventListener('change', () => {
+            setLoggingExternalConfigVisibility(!!el('logging-external-enabled')?.checked);
+            setDirty('debug');
+            updateSaveFooterState();
           });
            el('logging-open-config-link')?.addEventListener('click', (evt) => {
              evt.preventDefault();
@@ -3227,7 +3209,14 @@
             syncKrStrategyToRequestAuth();
           });
           el('jwt-inbound-mode')?.addEventListener('change', () => {
-            updateJwtModeFields(el('jwt-inbound-mode')?.value || 'none');
+            const mode = String(el('jwt-inbound-mode')?.value || 'none');
+            if (mode === 'jwks' && el('jwt-inbound-jwks-enabled') && !el('jwt-inbound-jwks-enabled').checked) {
+              el('jwt-inbound-jwks-enabled').checked = true;
+            }
+            updateJwtModeFields(mode);
+          });
+          el('jwt-inbound-jwks-enabled')?.addEventListener('change', () => {
+            setJwtJwksRequestVisibility(!!el('jwt-inbound-jwks-enabled')?.checked);
           });
           el('jwt-outbound-mode')?.addEventListener('change', () => {
             setJwtOutboundMode(el('jwt-outbound-mode')?.value || 'none');

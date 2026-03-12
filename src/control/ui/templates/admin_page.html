@@ -62,6 +62,7 @@
           <div id="outbound-auth-detail-fields">
           <div id="kr-request-form"></div>
           <div id="kr-rotation-fields">
+          <p style="margin:10px 0 6px;"><b>Token Response</b></p>
           <label for="kr-key-path" style="display:block;margin:10px 0 4px;">Response Key Path</label>
           <input id="kr-key-path" type="text" placeholder="data.apiKey"
             style="width:100%;max-width:520px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />
@@ -113,12 +114,10 @@
            <p style="margin-top:10px;"><a href="#" id="debug-refresh-trace-link">Refresh</a></p>
            <p style="margin-top:8px;"><a href="#" id="launch-live-log-link" style="color:#0f172a;opacity:1;text-decoration:underline;">Launch live logging</a></p>
            <p style="margin-top:16px;"><b>External Logging Configuration</b></p>
-           <label for="logging-auth-mode" style="display:block;margin:8px 0 4px;">Authentication Type</label>
-           <select id="logging-auth-mode" style="width:100%;max-width:260px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;">
-             <option value="none">None</option>
-             <option value="static">Static</option>
-             <option value="advanced">Advanced (OAuth/Rotation)</option>
-           </select>
+           <label style="display:flex;gap:8px;align-items:center;margin:8px 0 10px;">
+             <input id="logging-external-enabled" type="checkbox" />
+             <span>Enable external logging endpoint</span>
+           </label>
            <div id="logging-config-fields" style="display:none;">
              <div id="logging-request-form"></div>
              <div id="logging-secret-wrap">
@@ -199,7 +198,7 @@
            </select>
            <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;"></div>
            <div style="display:flex;align-items:center;gap:8px;margin:10px 0 6px;">
-             <b>Status</b>
+             <b>Proxy Key Status</b>
              <a href="#" id="keys-refresh-link-inbound">Check latest status</a>
            </div>
            <div id="keys-status-inbound" style="padding:12px;border:1px solid #ddd;border-radius:8px;line-height:1.6;margin-bottom:10px;">Key status will appear here.</div>
@@ -231,11 +230,17 @@
                <label for="jwt-inbound-issuer" style="display:block;margin:8px 0 4px;">Issuer (optional)</label>
                <input id="jwt-inbound-issuer" type="text" placeholder="iss"
                  style="width:100%;max-width:520px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />
-               <label for="jwt-inbound-audience" style="display:block;margin:8px 0 4px;">Audience (optional)</label>
-               <input id="jwt-inbound-audience" type="text" placeholder="aud"
-                 style="width:100%;max-width:520px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />
+              <label for="jwt-inbound-audience" style="display:block;margin:8px 0 4px;">Audience (optional)</label>
+              <input id="jwt-inbound-audience" type="text" placeholder="aud"
+                style="width:100%;max-width:520px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />
               <div id="jwt-inbound-jwks-fields" style="display:none;">
-                <div id="jwt-jwks-request-form"></div>
+                <label style="display:flex;gap:8px;align-items:center;margin:8px 0 10px;">
+                  <input id="jwt-inbound-jwks-enabled" type="checkbox" />
+                  <span>Enable external token validation request</span>
+                </label>
+                <div id="jwt-inbound-jwks-request-wrap">
+                  <div id="jwt-jwks-request-form"></div>
+                </div>
               </div>
               <div id="jwt-inbound-secret-template" style="margin-top:12px;"></div>
                <label for="jwt-inbound-skew" style="display:block;margin:8px 0 4px;">Clock skew seconds</label>
@@ -275,7 +280,7 @@
                style="width:100%;max-width:220px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />
              <div style="display:flex;align-items:center;gap:8px;margin:10px 0 6px;">
                <b>Issuer Key Status</b>
-               <a href="#" id="keys-refresh-link-issuer">refresh</a>
+               <a href="#" id="keys-refresh-link-issuer">Check latest status</a>
              </div>
              <div id="keys-status-issuer" style="padding:12px;border:1px solid #ddd;border-radius:8px;line-height:1.6;margin-bottom:10px;">Issuer key status will appear here.</div>
              <div style="display:flex;gap:8px;flex-wrap:wrap;">
@@ -298,8 +303,8 @@
         </div>
         <div id="tab-inbound-traffic-controls" class="tab-panel" style="display:none;">
           <p style="margin:0 0 10px 0;font-size:20px;"><b>Source Network Controls</b></p>
-          <div style="padding:10px 12px;border:1px solid #fecaca;background:#fff1f2;color:#991b1b;border-radius:8px;line-height:1.6;">
-            Warning: Prefer external network controls; use in-app controls only when edge/network policy is unavailable.
+          <div style="padding:10px 12px;border:1px solid #fde68a;background:#fffbeb;color:#92400e;border-radius:8px;line-height:1.6;">
+            Warning: Prefer external network controls. Use in-app controls only when edge/network policy is unavailable.
           </div>
           <div style="margin-top:12px;padding:10px;border:1px solid #e2e8f0;border-radius:8px;background:#f8fafc;line-height:1.8;">
             <p style="margin:0 0 8px 0;"><b>Runtime Network Controls</b></p>
@@ -375,15 +380,15 @@
            </select>
            <label for="sandbox-template" style="display:block;margin:10px 0 4px;">Template</label>
            <select id="sandbox-template" style="width:100%;max-width:520px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;"></select>
-             <div id="sandbox-auth-value-wrap" style="display:none;">
-               <label for="sandbox-auth-value" style="display:block;margin:8px 0 4px;">Auth Header Value (when required)</label>
-               <input id="sandbox-auth-value" type="password" placeholder="header value"
-                 style="width:100%;max-width:520px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />
-             </div>
-             <div id="sandbox-request-form"></div>
-             <div style="margin-top:10px;">
-               <button type="button" id="sandbox-send-btn">Make HTTP Request</button>
-             </div>
+            <div id="sandbox-auth-value-wrap" style="display:none;">
+              <label for="sandbox-auth-value" style="display:block;margin:8px 0 4px;">Auth Header Value (when required)</label>
+              <input id="sandbox-auth-value" type="password" placeholder="header value"
+                style="width:100%;max-width:520px;padding:8px 10px;border:1px solid #cbd5e1;border-radius:8px;" />
+            </div>
+            <div id="sandbox-request-form"></div>
+            <div style="margin-top:10px;">
+              <button type="button" id="sandbox-send-btn">Make HTTP Request</button>
+            </div>
            </div>
            <p style="margin-top:10px;"><b>cURL</b></p>
            <div style="font-size:12px;color:#64748b;margin-top:-4px;margin-bottom:6px;">secrets redacted</div>
